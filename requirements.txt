@@ -1,17 +1,10 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-requests==2.31.0
+websockets==11.0.3
 python-multipart==0.0.6
-pydantic==2.5.2
+jinja2==3.1.2
 aiofiles==23.2.1
-redis==5.0.1
-psutil==5.9.6
-aioredis==2.0.1
-
-# WebSocket support for real-time updates
-websockets==12.0
-python-socketio==5.10.0
-
-# WebSocket support for real-time updates
-websockets==12.0
-python-socketio==5.10.0
+pydantic==2.4.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+email-validator==2.1.0

@@ -1,0 +1,1155 @@
+"""
+MCP + A2A Enhanced AI Monitoring System
+Model Context Protocol + Agent-to-Agent Communication Architecture
+Complete consolidated implementation
+"""
+import os
+import asyncio
+import json
+import time
+import uuid
+import logging
+import sys
+import random
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Set
+from enum import Enum
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+# Setup logging
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(logs_dir / "app.log")
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# MODEL CONTEXT PROTOCOL (MCP) IMPLEMENTATION
+# =============================================================================
+
+@dataclass
+class MCPContext:
+    """Model Context Protocol - Shared context between agents"""
+    context_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    incident_id: str = ""
+    context_type: str = "incident_analysis"
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    
+    # Context data
+    shared_knowledge: Dict[str, Any] = field(default_factory=dict)
+    agent_insights: Dict[str, Any] = field(default_factory=dict)
+    correlation_patterns: List[Dict[str, Any]] = field(default_factory=list)
+    learned_behaviors: Dict[str, Any] = field(default_factory=dict)
+    
+    # Context metadata
+    confidence_scores: Dict[str, float] = field(default_factory=dict)
+    data_sources: List[str] = field(default_factory=list)
+    context_version: int = 1
+    
+    def update_context(self, agent_id: str, new_data: Dict[str, Any], confidence: float = 0.8):
+        """Update context with new agent insights"""
+        self.agent_insights[agent_id] = {
+            "data": new_data,
+            "timestamp": datetime.now().isoformat(),
+            "confidence": confidence
+        }
+        self.confidence_scores[agent_id] = confidence
+        self.updated_at = datetime.now()
+        self.context_version += 1
+    
+    def get_contextual_insights(self, requesting_agent: str) -> Dict[str, Any]:
+        """Get relevant context for requesting agent"""
+        relevant_insights = {}
+        
+        for agent_id, insight in self.agent_insights.items():
+            if agent_id != requesting_agent and insight["confidence"] > 0.7:
+                relevant_insights[agent_id] = insight
+        
+        return {
+            "shared_knowledge": self.shared_knowledge,
+            "peer_insights": relevant_insights,
+            "correlation_patterns": self.correlation_patterns,
+            "context_confidence": sum(self.confidence_scores.values()) / len(self.confidence_scores) if self.confidence_scores else 0.0
+        }
+
+class MCPRegistry:
+    """Registry for managing MCP contexts"""
+    
+    def __init__(self):
+        self.contexts: Dict[str, MCPContext] = {}
+        self.context_subscriptions: Dict[str, Set[str]] = {}
+    
+    def create_context(self, incident_id: str, context_type: str = "incident_analysis") -> MCPContext:
+        context = MCPContext(incident_id=incident_id, context_type=context_type)
+        self.contexts[context.context_id] = context
+        logger.info(f"📋 Created MCP context {context.context_id} for incident {incident_id}")
+        return context
+    
+    def get_context(self, context_id: str) -> Optional[MCPContext]:
+        return self.contexts.get(context_id)
+    
+    def subscribe_agent(self, agent_id: str, context_id: str):
+        if agent_id not in self.context_subscriptions:
+            self.context_subscriptions[agent_id] = set()
+        self.context_subscriptions[agent_id].add(context_id)
+
+# =============================================================================
+# AGENT-TO-AGENT (A2A) PROTOCOL IMPLEMENTATION
+# =============================================================================
+
+@dataclass
+class A2AMessage:
+    """Agent-to-Agent Protocol Message"""
+    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    sender_agent_id: str = ""
+    receiver_agent_id: str = ""
+    message_type: str = "info_request"
+    content: Dict[str, Any] = field(default_factory=dict)
+    priority: str = "normal"
+    created_at: datetime = field(default_factory=datetime.now)
+    requires_response: bool = False
+    correlation_id: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "message_id": self.message_id,
+            "sender": self.sender_agent_id,
+            "receiver": self.receiver_agent_id,
+            "type": self.message_type,
+            "content": self.content,
+            "priority": self.priority,
+            "timestamp": self.created_at.isoformat(),
+            "requires_response": self.requires_response,
+            "correlation_id": self.correlation_id
+        }
+
+class A2AProtocol:
+    """Agent-to-Agent Communication Protocol"""
+    
+    def __init__(self):
+        self.message_queue: Dict[str, List[A2AMessage]] = {}
+        self.active_collaborations: Dict[str, Dict[str, Any]] = {}
+        self.message_history: List[A2AMessage] = []
+        self.agent_capabilities: Dict[str, List[str]] = {}
+    
+    def register_agent_capabilities(self, agent_id: str, capabilities: List[str]):
+        self.agent_capabilities[agent_id] = capabilities
+        logger.info(f"🤝 Registered A2A capabilities for {agent_id}: {capabilities}")
+    
+    def send_message(self, message: A2AMessage):
+        if message.receiver_agent_id not in self.message_queue:
+            self.message_queue[message.receiver_agent_id] = []
+        
+        self.message_queue[message.receiver_agent_id].append(message)
+        self.message_history.append(message)
+        logger.info(f"📨 A2A Message: {message.sender_agent_id} → {message.receiver_agent_id} [{message.message_type}]")
+    
+    def get_messages(self, agent_id: str) -> List[A2AMessage]:
+        messages = self.message_queue.get(agent_id, [])
+        self.message_queue[agent_id] = []
+        return messages
+    
+    def initiate_collaboration(self, initiator: str, participants: List[str], task: str, context: Dict[str, Any]) -> str:
+        collab_id = str(uuid.uuid4())
+        self.active_collaborations[collab_id] = {
+            "id": collab_id,
+            "initiator": initiator,
+            "participants": participants,
+            "task": task,
+            "context": context,
+            "status": "active",
+            "created_at": datetime.now().isoformat(),
+            "messages": []
+        }
+        
+        for participant in participants:
+            if participant != initiator:
+                message = A2AMessage(
+                    sender_agent_id=initiator,
+                    receiver_agent_id=participant,
+                    message_type="collaboration_request",
+                    content={
+                        "collaboration_id": collab_id,
+                        "task": task,
+                        "context": context
+                    },
+                    requires_response=True,
+                    correlation_id=collab_id
+                )
+                self.send_message(message)
+        
+        logger.info(f"🤝 Started A2A collaboration {collab_id}: {task}")
+        return collab_id
+
+# =============================================================================
+# ENHANCED AGENT SYSTEM
+# =============================================================================
+
+class AgentStatus(Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+    WAITING = "waiting"
+    COLLABORATING = "collaborating"
+
+class IncidentSeverity(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+@dataclass
+class AgentExecution:
+    agent_id: str
+    agent_name: str
+    execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    incident_id: str = ""
+    status: AgentStatus = AgentStatus.IDLE
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    progress: int = 0
+    logs: List[Dict[str, Any]] = field(default_factory=list)
+    input_data: Dict[str, Any] = field(default_factory=dict)
+    output_data: Dict[str, Any] = field(default_factory=dict)
+    error_message: str = ""
+    duration_seconds: float = 0.0
+    
+    # MCP + A2A enhancements
+    mcp_context_id: str = ""
+    a2a_messages_sent: int = 0
+    a2a_messages_received: int = 0
+    collaboration_sessions: List[str] = field(default_factory=list)
+    contextual_insights_used: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class Incident:
+    id: str = field(default_factory=lambda: f"INC-{int(time.time())}")
+    title: str = ""
+    description: str = ""
+    severity: IncidentSeverity = IncidentSeverity.MEDIUM
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    status: str = "open"
+    affected_systems: List[str] = field(default_factory=list)
+    workflow_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    workflow_status: str = "in_progress"
+    current_agent: str = ""
+    completed_agents: List[str] = field(default_factory=list)
+    failed_agents: List[str] = field(default_factory=list)
+    executions: Dict[str, AgentExecution] = field(default_factory=dict)
+    root_cause: str = ""
+    resolution: str = ""
+    pagerduty_incident_id: str = ""
+    servicenow_ticket_id: str = ""
+    remediation_applied: List[str] = field(default_factory=list)
+    incident_type: str = ""
+    
+    # MCP + A2A enhancements
+    mcp_context_id: str = ""
+    a2a_collaborations: List[str] = field(default_factory=list)
+    cross_agent_insights: Dict[str, Any] = field(default_factory=dict)
+
+# Diverse incident scenarios
+INCIDENT_SCENARIOS = [
+    {
+        "title": "Database Connection Pool Exhaustion - Production MySQL",
+        "description": "Production MySQL database experiencing connection pool exhaustion with applications unable to establish new connections.",
+        "severity": "critical",
+        "affected_systems": ["mysql-prod-01", "mysql-prod-02", "app-servers-pool"],
+        "incident_type": "database",
+        "root_cause": "Connection pool exhaustion due to long-running queries and insufficient connection cleanup"
+    },
+    {
+        "title": "DDoS Attack Detected - Main Web Application",
+        "description": "Distributed Denial of Service attack targeting main web application. Traffic spike: 50,000 requests/second.",
+        "severity": "critical",
+        "affected_systems": ["web-app-prod", "load-balancer-01", "cdn-endpoints"],
+        "incident_type": "security",
+        "root_cause": "Coordinated DDoS attack using botnet across multiple geographic regions"
+    },
+    {
+        "title": "Kubernetes Pod Crash Loop - Microservices",
+        "description": "Critical microservices experiencing crash loop backoff in Kubernetes cluster.",
+        "severity": "high",
+        "affected_systems": ["k8s-cluster-prod", "user-service", "order-service"],
+        "incident_type": "container",
+        "root_cause": "Memory limits too restrictive for current workload causing OOMKilled events"
+    },
+    {
+        "title": "SSL Certificate Expiration - E-commerce Platform",
+        "description": "SSL certificates for main e-commerce platform expired, causing browser security warnings.",
+        "severity": "critical",
+        "affected_systems": ["ecommerce-frontend", "payment-gateway", "api-endpoints"],
+        "incident_type": "security",
+        "root_cause": "SSL certificate auto-renewal process failed due to DNS validation issues"
+    },
+    {
+        "title": "API Rate Limit Exceeded - Payment Integration",
+        "description": "Third-party payment API rate limits exceeded causing transaction failures.",
+        "severity": "high",
+        "affected_systems": ["payment-service", "checkout-api", "billing-system"],
+        "incident_type": "api",
+        "root_cause": "Inefficient API call patterns and missing request throttling mechanisms"
+    },
+    {
+        "title": "Ransomware Detection - File Server Encryption",
+        "description": "Ransomware activity detected on file servers with multiple encrypted files.",
+        "severity": "critical",
+        "affected_systems": ["file-server-01", "backup-server", "shared-storage"],
+        "incident_type": "security",
+        "root_cause": "Ransomware infiltration through compromised email attachment"
+    }
+]
+
+# =============================================================================
+# ENHANCED WORKFLOW ENGINE
+# =============================================================================
+
+class MCPEnhancedWorkflowEngine:
+    """Enhanced Workflow Engine with MCP + A2A Protocol support"""
+    
+    def __init__(self):
+        self.active_incidents: Dict[str, Incident] = {}
+        self.incident_history: List[Incident] = []
+        self.agent_execution_history: Dict[str, List[AgentExecution]] = {
+            "monitoring": [], "rca": [], "pager": [], "ticketing": [], 
+            "email": [], "remediation": [], "validation": []
+        }
+        
+        # MCP + A2A components
+        self.mcp_registry = MCPRegistry()
+        self.a2a_protocol = A2AProtocol()
+        
+        self._register_agent_capabilities()
+    
+    def _register_agent_capabilities(self):
+        """Register agent capabilities for A2A collaboration"""
+        capabilities = {
+            "monitoring": ["metric_analysis", "anomaly_detection", "system_health_check"],
+            "rca": ["root_cause_analysis", "pattern_correlation", "dependency_mapping"],
+            "pager": ["escalation_routing", "stakeholder_notification", "team_coordination"],
+            "ticketing": ["ticket_classification", "priority_assignment", "workflow_routing"],
+            "email": ["stakeholder_communication", "status_broadcasting", "executive_reporting"],
+            "remediation": ["automated_fixes", "rollback_procedures", "system_recovery"],
+            "validation": ["health_verification", "performance_testing", "compliance_checking"]
+        }
+        
+        for agent_id, agent_capabilities in capabilities.items():
+            self.a2a_protocol.register_agent_capabilities(agent_id, agent_capabilities)
+    
+    async def trigger_incident_workflow(self, incident_data: Dict[str, Any]) -> Incident:
+        """Enhanced incident workflow with MCP + A2A support"""
+        scenario = random.choice(INCIDENT_SCENARIOS)
+        incident = Incident(
+            title=scenario["title"],
+            description=scenario["description"],
+            severity=IncidentSeverity(scenario["severity"]),
+            affected_systems=scenario["affected_systems"],
+            incident_type=scenario["incident_type"]
+        )
+        
+        # Create MCP context
+        mcp_context = self.mcp_registry.create_context(incident.id, "incident_analysis")
+        incident.mcp_context_id = mcp_context.context_id
+        
+        # Initialize shared context
+        mcp_context.shared_knowledge = {
+            "incident_details": {
+                "title": incident.title,
+                "type": incident.incident_type,
+                "severity": incident.severity.value,
+                "affected_systems": incident.affected_systems
+            },
+            "scenario_data": scenario
+        }
+        
+        logger.info(f"🎭 Selected MCP+A2A scenario: {scenario['incident_type']} - {scenario['title']}")
+        
+        self.active_incidents[incident.id] = incident
+        asyncio.create_task(self._execute_enhanced_workflow(incident))
+        return incident
+    
+    async def _execute_enhanced_workflow(self, incident: Incident):
+        """Execute workflow with MCP context sharing and A2A collaboration"""
+        workflow_steps = [
+            ("monitoring", self._execute_enhanced_monitoring_agent),
+            ("rca", self._execute_enhanced_rca_agent),
+            ("pager", self._execute_enhanced_pager_agent),
+            ("ticketing", self._execute_enhanced_ticketing_agent),
+            ("email", self._execute_enhanced_email_agent),
+            ("remediation", self._execute_enhanced_remediation_agent),
+            ("validation", self._execute_enhanced_validation_agent)
+        ]
+        
+        try:
+            for agent_id, agent_func in workflow_steps:
+                incident.current_agent = agent_id
+                incident.updated_at = datetime.now()
+                
+                # Subscribe agent to MCP context
+                self.mcp_registry.subscribe_agent(agent_id, incident.mcp_context_id)
+                
+                execution = await agent_func(incident)
+                incident.executions[agent_id] = execution
+                self.agent_execution_history[agent_id].append(execution)
+                
+                if execution.status == AgentStatus.SUCCESS:
+                    incident.completed_agents.append(agent_id)
+                else:
+                    incident.failed_agents.append(agent_id)
+                
+                # Process A2A messages
+                await self._process_a2a_messages(agent_id, incident)
+                
+                await asyncio.sleep(random.uniform(1.5, 3.0))
+            
+            incident.workflow_status = "completed"
+            incident.current_agent = ""
+            incident.status = "resolved" if len(incident.failed_agents) == 0 else "partially_resolved"
+            
+            self.incident_history.append(incident)
+            del self.active_incidents[incident.id]
+            
+        except Exception as e:
+            incident.workflow_status = "failed"
+            incident.status = "failed"
+            logger.error(f"Enhanced workflow failed for incident {incident.id}: {str(e)}")
+    
+    async def _process_a2a_messages(self, agent_id: str, incident: Incident):
+        """Process pending A2A messages for an agent"""
+        messages = self.a2a_protocol.get_messages(agent_id)
+        
+        for message in messages:
+            logger.info(f"📨 Processing A2A message for {agent_id}: {message.message_type}")
+            
+            if agent_id in incident.executions:
+                incident.executions[agent_id].a2a_messages_received += 1
+            
+            # Handle message types
+            if message.message_type == "collaboration_request":
+                collab_id = message.content.get("collaboration_id")
+                if agent_id in incident.executions:
+                    incident.executions[agent_id].collaboration_sessions.append(collab_id)
+            elif message.message_type == "data_share":
+                # Update MCP context with shared data
+                mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
+                if mcp_context:
+                    shared_data = message.content.get("data", {})
+                    confidence = message.content.get("confidence", 0.8)
+                    mcp_context.update_context(message.sender_agent_id, shared_data, confidence)
+    
+    # Enhanced agent implementations
+    async def _execute_enhanced_monitoring_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="monitoring", agent_name="Enhanced Monitoring Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            # Get MCP context
+            mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
+            if mcp_context:
+                contextual_insights = mcp_context.get_contextual_insights("monitoring")
+                execution.contextual_insights_used = contextual_insights
+            
+            await self._log_activity(execution, f"🔍 Enhanced monitoring with MCP context for {incident.incident_type}...")
+            execution.progress = 30
+            await asyncio.sleep(random.uniform(1.5, 2.5))
+            
+            # Type-specific monitoring with A2A collaboration
+            if incident.incident_type == "security":
+                await self._log_activity(execution, "🚨 Security threat analysis with A2A intelligence sharing...")
+                execution.progress = 70
+                
+                # Share threat data with security-capable agents
+                threat_data = {
+                    "threat_indicators": random.randint(100, 500),
+                    "attack_vectors": ["ddos", "malware", "phishing"],
+                    "severity_assessment": incident.severity.value
+                }
+                
+                # Send to RCA agent for pattern analysis
+                message = A2AMessage(
+                    sender_agent_id="monitoring",
+                    receiver_agent_id="rca",
+                    message_type="data_share",
+                    content={"data": threat_data, "confidence": 0.9}
+                )
+                self.a2a_protocol.send_message(message)
+                execution.a2a_messages_sent += 1
+                
+                execution.output_data = {
+                    "anomaly_type": "security_breach",
+                    "threat_level": "Critical",
+                    "a2a_intelligence_shared": True
+                }
+            
+            elif incident.incident_type == "database":
+                await self._log_activity(execution, "📊 Database metrics analysis with peer collaboration...")
+                execution.progress = 60
+                
+                # Request collaboration with RCA agent
+                collab_id = self.a2a_protocol.initiate_collaboration(
+                    "monitoring", ["rca"], 
+                    "database_pattern_analysis",
+                    {"incident_type": incident.incident_type, "severity": incident.severity.value}
+                )
+                execution.collaboration_sessions.append(collab_id)
+                
+                execution.output_data = {
+                    "anomaly_type": "connection_exhaustion",
+                    "metrics_analyzed": 15420,
+                    "collaboration_initiated": True
+                }
+            
+            else:
+                await self._log_activity(execution, f"📊 Standard {incident.incident_type} monitoring with MCP context...")
+                execution.output_data = {"anomaly_type": f"{incident.incident_type}_degradation"}
+            
+            # Update MCP context
+            if mcp_context:
+                mcp_context.update_context("monitoring", execution.output_data, 0.9)
+            
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, "✅ Enhanced monitoring completed with MCP+A2A features")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_rca_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="rca", agent_name="Enhanced RCA Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            # Get enhanced context from MCP
+            mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
+            contextual_data = {}
+            if mcp_context:
+                contextual_data = mcp_context.get_contextual_insights("rca")
+                execution.contextual_insights_used = contextual_data
+            
+            await self._log_activity(execution, "🧠 Enhanced RCA analysis with cross-agent insights...")
+            execution.progress = 30
+            await asyncio.sleep(random.uniform(2.0, 3.0))
+            
+            # Use contextual insights for better analysis
+            confidence_boost = 0.15 if contextual_data.get("peer_insights") else 0.0
+            if confidence_boost:
+                await self._log_activity(execution, "💡 Leveraging peer agent insights for enhanced analysis...")
+            
+            # Get scenario-specific root cause
+            scenario = None
+            for s in INCIDENT_SCENARIOS:
+                if s["title"] == incident.title:
+                    scenario = s
+                    break
+            
+            root_cause = scenario["root_cause"] if scenario else f"{incident.incident_type.title()} issue requiring investigation"
+            enhanced_confidence = min(0.99, random.uniform(0.85, 0.97) + confidence_boost)
+            
+            await self._log_activity(execution, "🔍 Cross-correlating with MCP knowledge base...")
+            execution.progress = 70
+            await asyncio.sleep(random.uniform(1.5, 2.5))
+            
+            execution.output_data = {
+                "root_cause": root_cause,
+                "confidence": enhanced_confidence,
+                "mcp_enhanced": True,
+                "used_peer_insights": bool(contextual_data.get("peer_insights")),
+                "context_confidence": contextual_data.get("context_confidence", 0.0)
+            }
+            
+            # Share findings with remediation agent
+            if incident.incident_type in ["security", "database", "container"]:
+                rca_findings = {
+                    "root_cause_summary": root_cause,
+                    "confidence_score": enhanced_confidence,
+                    "recommended_actions": ["automated_remediation", "system_optimization"]
+                }
+                
+                message = A2AMessage(
+                    sender_agent_id="rca",
+                    receiver_agent_id="remediation",
+                    message_type="data_share",
+                    content={"data": rca_findings, "confidence": enhanced_confidence},
+                    priority="high"
+                )
+                self.a2a_protocol.send_message(message)
+                execution.a2a_messages_sent += 1
+            
+            # Update MCP context
+            if mcp_context:
+                mcp_context.update_context("rca", execution.output_data, enhanced_confidence)
+            
+            incident.root_cause = execution.output_data["root_cause"]
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, f"✅ Enhanced RCA completed - Confidence: {enhanced_confidence:.1%}")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_pager_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="pager", agent_name="Enhanced Pager Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            await self._log_activity(execution, f"📞 Intelligent escalation with MCP context...")
+            execution.progress = 40
+            await asyncio.sleep(random.uniform(1.0, 1.8))
+            
+            team = self._get_escalation_team(incident.incident_type)
+            
+            await self._log_activity(execution, f"📱 Context-aware escalation to {team}...")
+            execution.progress = 80
+            await asyncio.sleep(random.uniform(1.0, 1.5))
+            
+            # Request coordination with email agent
+            coord_message = A2AMessage(
+                sender_agent_id="pager",
+                receiver_agent_id="email",
+                message_type="collaboration_request",
+                content={
+                    "task": "coordinated_notification",
+                    "escalation_team": team,
+                    "incident_details": {
+                        "type": incident.incident_type,
+                        "severity": incident.severity.value,
+                        "title": incident.title
+                    }
+                },
+                priority="high"
+            )
+            self.a2a_protocol.send_message(coord_message)
+            execution.a2a_messages_sent += 1
+            
+            execution.output_data = {
+                "pagerduty_incident_id": f"PD-{incident.incident_type.upper()}-{incident.id[-6:]}",
+                "escalated_to": team,
+                "on_call_engineer": self._get_on_call_engineer(incident.incident_type),
+                "coordinated_notification": True
+            }
+            
+            incident.pagerduty_incident_id = execution.output_data["pagerduty_incident_id"]
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, "✅ Enhanced escalation with A2A coordination completed")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_ticketing_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="ticketing", agent_name="Enhanced Ticketing Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            await self._log_activity(execution, f"🎫 MCP-enhanced ticket creation...")
+            execution.progress = 50
+            await asyncio.sleep(random.uniform(1.2, 2.0))
+            
+            priority, category = self._get_enhanced_ticket_classification(incident)
+            
+            execution.output_data = {
+                "ticket_id": f"MCP-{incident.incident_type.upper()}{datetime.now().strftime('%Y%m%d')}{incident.id[-4:]}",
+                "priority": priority,
+                "category": category,
+                "mcp_enhanced_classification": True
+            }
+            
+            incident.servicenow_ticket_id = execution.output_data["ticket_id"]
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, "✅ MCP-enhanced ticket created")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_email_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="email", agent_name="Enhanced Email Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            await self._log_activity(execution, "📧 A2A coordinated communication...")
+            execution.progress = 60
+            await asyncio.sleep(random.uniform(1.0, 1.5))
+            
+            stakeholders = self._get_enhanced_stakeholders(incident)
+            
+            execution.output_data = {
+                "emails_sent": stakeholders,
+                "a2a_coordinated": True,
+                "mcp_context_used": True
+            }
+            
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, "✅ Enhanced communication completed")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_remediation_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="remediation", agent_name="Enhanced Remediation Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            # Get RCA insights from MCP context
+            mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
+            rca_insights = {}
+            if mcp_context and "rca" in mcp_context.agent_insights:
+                rca_insights = mcp_context.agent_insights["rca"]["data"]
+            
+            await self._log_activity(execution, "🔧 Intelligent remediation with RCA insights...")
+            execution.progress = 30
+            await asyncio.sleep(random.uniform(1.5, 2.5))
+            
+            # Enhanced remediation based on RCA findings
+            base_actions = self._get_remediation_actions(incident.incident_type)
+            if rca_insights.get("recommended_actions"):
+                enhanced_actions = base_actions + ["mcp_optimized_fix", "a2a_coordinated_recovery"]
+            else:
+                enhanced_actions = base_actions
+            
+            await self._log_activity(execution, f"⚡ Executing {len(enhanced_actions)} AI-optimized procedures...")
+            execution.progress = 80
+            await asyncio.sleep(random.uniform(2.0, 3.0))
+            
+            execution.output_data = {
+                "actions_performed": enhanced_actions,
+                "rca_enhanced": bool(rca_insights),
+                "intelligence_confidence": rca_insights.get("confidence", 0.8)
+            }
+            
+            incident.remediation_applied = execution.output_data["actions_performed"]
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            await self._log_activity(execution, "✅ Enhanced remediation completed")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    async def _execute_enhanced_validation_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="validation", agent_name="Enhanced Validation Agent",
+            incident_id=incident.id, mcp_context_id=incident.mcp_context_id
+        )
+        
+        execution.status = AgentStatus.RUNNING
+        execution.started_at = datetime.now()
+        
+        try:
+            # Get comprehensive context from MCP
+            mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
+            confidence_factors = []
+            if mcp_context and mcp_context.confidence_scores:
+                confidence_factors = list(mcp_context.confidence_scores.values())
+            
+            overall_confidence = sum(confidence_factors) / len(confidence_factors) if confidence_factors else 0.8
+            
+            await self._log_activity(execution, f"🔍 Comprehensive validation with MCP context...")
+            execution.progress = 40
+            await asyncio.sleep(random.uniform(2.0, 3.0))
+            
+            await self._log_activity(execution, f"📊 Cross-agent validation with {len(confidence_factors)} data sources...")
+            execution.progress = 80
+            await asyncio.sleep(random.uniform(1.5, 2.0))
+            
+            # Success rate influenced by overall confidence
+            success_threshold = 0.75 + (overall_confidence * 0.15)
+            resolution_successful = random.random() < success_threshold
+            
+            execution.output_data = {
+                "incident_resolved": resolution_successful,
+                "validation_score": random.uniform(0.90, 0.98) if resolution_successful else random.uniform(0.70, 0.85),
+                "mcp_enhanced": True,
+                "cross_agent_validation": True,
+                "confidence_factors_used": len(confidence_factors),
+                "overall_system_confidence": overall_confidence
+            }
+            
+            # Final MCP context update
+            if mcp_context:
+                mcp_context.update_context("validation", execution.output_data, 0.95)
+                mcp_context.shared_knowledge["final_resolution"] = {
+                    "status": "resolved" if resolution_successful else "partially_resolved",
+                    "confidence": overall_confidence,
+                    "validated_at": datetime.now().isoformat()
+                }
+            
+            if resolution_successful:
+                incident.resolution = f"{incident.incident_type.title()} fully resolved using MCP+A2A enhanced analysis with {overall_confidence:.1%} confidence"
+                incident.status = "resolved"
+            else:
+                incident.resolution = f"{incident.incident_type.title()} partially resolved - MCP analysis suggests continued monitoring"
+                incident.status = "partially_resolved"
+            
+            execution.progress = 100
+            execution.status = AgentStatus.SUCCESS
+            status_msg = "fully resolved" if resolution_successful else "partially resolved"
+            await self._log_activity(execution, f"✅ Enhanced validation completed - Issue {status_msg}")
+            
+        except Exception as e:
+            execution.status = AgentStatus.ERROR
+            execution.error_message = str(e)
+        
+        execution.completed_at = datetime.now()
+        execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+        return execution
+    
+    # Helper methods
+    def _get_escalation_team(self, incident_type: str) -> str:
+        teams = {
+            "database": "Database Engineering",
+            "security": "Security Operations Center", 
+            "network": "Network Operations Team",
+            "infrastructure": "Infrastructure Engineering",
+            "container": "Platform Engineering",
+            "api": "API Platform Team"
+        }
+        return teams.get(incident_type, "General Operations")
+    
+    def _get_on_call_engineer(self, incident_type: str) -> str:
+        engineers = {
+            "database": random.choice(["Sarah Chen", "Marcus Rodriguez"]),
+            "security": random.choice(["Alex Thompson", "Jordan Kim"]),
+            "container": random.choice(["Sam Parker", "Jessica Liu"])
+        }
+        return engineers.get(incident_type, "Jamie Smith")
+    
+    def _get_enhanced_ticket_classification(self, incident: Incident) -> tuple:
+        priority_map = {"critical": "0 - Emergency", "high": "1 - High", "medium": "2 - Medium", "low": "3 - Low"}
+        base_priority = priority_map.get(incident.severity.value, "2 - Medium")
+        
+        categories = {
+            "database": "Database Services - MCP Enhanced",
+            "security": "Security Incident - A2A Coordinated",
+            "container": "Container Platform - AI Optimized"
+        }
+        category = categories.get(incident.incident_type, "General - AI Enhanced")
+        
+        return base_priority, category
+    
+    def _get_enhanced_stakeholders(self, incident: Incident) -> List[str]:
+        return [f"{incident.incident_type}-team@company.com", "mcp-ops@company.com", "a2a-coordination@company.com"]
+    
+    def _get_remediation_actions(self, incident_type: str) -> List[str]:
+        actions = {
+            "database": ["connection_pool_scaling", "query_optimization", "replica_failover"],
+            "security": ["system_isolation", "credential_rotation", "security_patching"],
+            "container": ["pod_restart", "resource_scaling", "node_optimization"],
+            "api": ["rate_limit_tuning", "backend_scaling", "circuit_breaker_reset"]
+        }
+        return actions.get(incident_type, ["service_restart", "resource_scaling"])
+    
+    async def _log_activity(self, execution: AgentExecution, message: str, level: str = "INFO"):
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "message": message,
+            "execution_id": execution.execution_id,
+            "mcp_context_id": execution.mcp_context_id
+        }
+        execution.logs.append(log_entry)
+        logger.info(f"[{execution.incident_id}] {execution.agent_name}: {message}")
+
+# Global enhanced workflow engine
+workflow_engine = MCPEnhancedWorkflowEngine()
+
+# =============================================================================
+# FASTAPI APPLICATION WITH MCP + A2A APIS
+# =============================================================================
+
+class MCPEnhancedMonitoringApp:
+    def __init__(self):
+        self.app = FastAPI(
+            title="MCP + A2A Enhanced AI Monitoring System",
+            description="Model Context Protocol + Agent-to-Agent Communication Architecture",
+            version="3.0.0",
+            docs_url="/api/docs"
+        )
+        
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
+        self._setup_routes()
+    
+    def _setup_routes(self):
+        @self.app.post("/api/trigger-incident")
+        async def trigger_incident(incident_data: dict):
+            incident = await workflow_engine.trigger_incident_workflow(incident_data)
+            return {
+                "incident_id": incident.id,
+                "workflow_id": incident.workflow_id,
+                "mcp_context_id": incident.mcp_context_id,
+                "status": "workflow_started",
+                "title": incident.title,
+                "severity": incident.severity.value,
+                "incident_type": incident.incident_type,
+                "message": f"MCP+A2A Enhanced Incident {incident.id} workflow initiated",
+                "enhanced_features": ["Model Context Protocol", "Agent-to-Agent Communication"]
+            }
+        
+        @self.app.get("/api/mcp/contexts")
+        async def get_mcp_contexts():
+            contexts = []
+            for context_id, context in workflow_engine.mcp_registry.contexts.items():
+                contexts.append({
+                    "context_id": context.context_id,
+                    "incident_id": context.incident_id,
+                    "created_at": context.created_at.isoformat(),
+                    "context_version": context.context_version,
+                    "agent_count": len(context.agent_insights),
+                    "confidence_avg": sum(context.confidence_scores.values()) / len(context.confidence_scores) if context.confidence_scores else 0.0
+                })
+            
+            return {"total_contexts": len(contexts), "contexts": contexts}
+        
+        @self.app.get("/api/a2a/messages/history")
+        async def get_a2a_message_history(limit: int = 20):
+            recent_messages = workflow_engine.a2a_protocol.message_history[-limit:]
+            return {
+                "total_messages": len(workflow_engine.a2a_protocol.message_history),
+                "recent_messages": [msg.to_dict() for msg in recent_messages]
+            }
+        
+        @self.app.get("/api/a2a/collaborations")
+        async def get_a2a_collaborations():
+            collaborations = []
+            for collab_id, collab in workflow_engine.a2a_protocol.active_collaborations.items():
+                collaborations.append({
+                    "collaboration_id": collab_id,
+                    "initiator": collab["initiator"],
+                    "participants": collab["participants"],
+                    "task": collab["task"],
+                    "status": collab["status"],
+                    "created_at": collab["created_at"]
+                })
+            
+            return {"collaborations": collaborations}
+        
+        @self.app.get("/api/incidents/{incident_id}/status")
+        async def get_enhanced_incident_status(incident_id: str):
+            incident = None
+            if incident_id in workflow_engine.active_incidents:
+                incident = workflow_engine.active_incidents[incident_id]
+            else:
+                incident = next((i for i in workflow_engine.incident_history if i.id == incident_id), None)
+            
+            if not incident:
+                return {"error": "Incident not found"}
+            
+            # Get MCP context data
+            mcp_data = {}
+            if incident.mcp_context_id:
+                context = workflow_engine.mcp_registry.get_context(incident.mcp_context_id)
+                if context:
+                    mcp_data = {
+                        "context_version": context.context_version,
+                        "agent_insights_count": len(context.agent_insights),
+                        "avg_confidence": sum(context.confidence_scores.values()) / len(context.confidence_scores) if context.confidence_scores else 0.0
+                    }
+            
+            # Get A2A data
+            a2a_data = {
+                "total_messages_sent": sum(exec.a2a_messages_sent for exec in incident.executions.values()),
+                "total_messages_received": sum(exec.a2a_messages_received for exec in incident.executions.values()),
+                "active_collaborations": len(incident.a2a_collaborations)
+            }
+            
+            return {
+                "incident_id": incident.id,
+                "title": incident.title,
+                "severity": incident.severity.value,
+                "incident_type": incident.incident_type,
+                "status": incident.status,
+                "workflow_status": incident.workflow_status,
+                "resolution": incident.resolution,
+                "enhanced_features": {
+                    "mcp_context": mcp_data,
+                    "a2a_protocol": a2a_data
+                },
+                "executions": {
+                    agent_id: {
+                        "status": execution.status.value,
+                        "progress": execution.progress,
+                        "mcp_enhanced": bool(execution.contextual_insights_used),
+                        "a2a_messages": {
+                            "sent": execution.a2a_messages_sent,
+                            "received": execution.a2a_messages_received
+                        },
+                        "collaborations": len(execution.collaboration_sessions)
+                    }
+                    for agent_id, execution in incident.executions.items()
+                }
+            }
+        
+        @self.app.get("/api/dashboard/stats")
+        async def get_enhanced_dashboard_stats():
+            all_incidents = list(workflow_engine.active_incidents.values()) + workflow_engine.incident_history
+            
+            # MCP statistics
+            mcp_stats = {
+                "total_contexts": len(workflow_engine.mcp_registry.contexts),
+                "avg_context_confidence": 0.0
+            }
+            
+            if workflow_engine.mcp_registry.contexts:
+                confidences = []
+                for context in workflow_engine.mcp_registry.contexts.values():
+                    if context.confidence_scores:
+                        confidences.extend(context.confidence_scores.values())
+                mcp_stats["avg_context_confidence"] = sum(confidences) / len(confidences) if confidences else 0.0
+            
+            # A2A statistics
+            a2a_stats = {
+                "total_messages": len(workflow_engine.a2a_protocol.message_history),
+                "active_collaborations": len(workflow_engine.a2a_protocol.active_collaborations),
+                "registered_agents": len(workflow_engine.a2a_protocol.agent_capabilities)
+            }
+            
+            return {
+                "incidents": {
+                    "total_all_time": len(all_incidents),
+                    "active": len(workflow_engine.active_incidents),
+                    "enhanced_resolution_rate": 95.0
+                },
+                "enhanced_features": {
+                    "mcp": mcp_stats,
+                    "a2a": a2a_stats
+                },
+                "system": {
+                    "version": "3.0.0 - MCP+A2A Enhanced",
+                    "available_scenarios": len(INCIDENT_SCENARIOS)
+                }
+            }
+        
+        @self.app.get("/health")
+        async def enhanced_health_check():
+            return {
+                "status": "healthy",
+                "service": "MCP + A2A Enhanced AI Monitoring System",
+                "version": "3.0.0",
+                "architecture": {
+                    "model_context_protocol": "Active",
+                    "agent_to_agent_protocol": "Active",
+                    "cross_agent_intelligence": "Enabled"
+                },
+                "features": [
+                    "Model Context Protocol (MCP)",
+                    "Agent-to-Agent (A2A) Communication",
+                    "Cross-agent intelligence sharing",
+                    "Collaborative problem solving"
+                ],
+                "workflow_engine": {
+                    "active_incidents": len(workflow_engine.active_incidents),
+                    "mcp_contexts": len(workflow_engine.mcp_registry.contexts),
+                    "a2a_collaborations": len(workflow_engine.a2a_protocol.active_collaborations)
+                }
+            }
+        
+        # Serve frontend
+        frontend_path = Path("frontend/build")
+        if frontend_path.exists():
+            self.app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="static")
+        else:
+            @self.app.get("/")
+            async def root():
+                return {
+                    "message": "🚀 MCP + A2A Enhanced AI Monitoring System v3.0",
+                    "version": "3.0.0",
+                    "architecture": "Model Context Protocol + Agent-to-Agent Communication",
+                    "new_features": [
+                        "🧠 Model Context Protocol - Shared intelligence across agents",
+                        "🤝 Agent-to-Agent Protocol - Direct agent communication",
+                        "🔗 Cross-agent collaboration and coordination"
+                    ]
+                }
+    
+    def run(self, host: str = "0.0.0.0", port: int = 8000):
+        logger.info("🚀 Starting MCP + A2A Enhanced AI Monitoring System v3.0...")
+        logger.info("🧠 Model Context Protocol: ACTIVE")
+        logger.info("🤝 Agent-to-Agent Protocol: ACTIVE")
+        uvicorn.run(self.app, host=host, port=port, log_level="info")
+
+if __name__ == "__main__":
+    app = MCPEnhancedMonitoringApp()
+    app.run()
