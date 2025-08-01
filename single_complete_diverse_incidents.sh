@@ -589,7 +589,11 @@ class WorkflowEngine:
             elif incident.incident_type == "container":
                 await self._log_activity(execution, "📦 Examining container orchestration patterns and resource allocation...")
                 execution.progress = 60
+<<<<<<< HEAD
                 
+=======
+           
+>>>>>>> refs/remotes/origin/main
 
                 await self._log_activity(execution, "🔍 Analyzing Kubernetes scheduler decisions and node capacity...")
                 
@@ -1555,4 +1559,7 @@ if __name__ == "__main__":
     app = EnhancedMonitoringSystemApp()
     app.run()
 EOF_MAIN_PY
+<<<<<<< HEAD
 
+=======
+>>>>>>> refs/remotes/origin/main
