@@ -6,7 +6,8 @@ import {
   RefreshCw, ExternalLink, Eye, X, Terminal,
   Database, Wifi, Server, Lock, Container, HardDrive,
   Brain, MessageSquare, Network, Share2, Layers, Target,
-  Play, Pause, BarChart3, Globe, Users
+  Play, Pause, BarChart3, Globe, Users, ChevronDown,
+  ChevronUp, Code, FileText, Clock3
 } from 'lucide-react';
 
 function App() {
@@ -15,18 +16,19 @@ function App() {
   const [incidents, setIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
-  const [agentHistory, setAgentHistory] = useState(null);
+  const [agentLogs, setAgentLogs] = useState(null);
+  const [showAgentLogsModal, setShowAgentLogsModal] = useState(false);
   const [mcpContexts, setMcpContexts] = useState([]);
   const [a2aMessages, setA2aMessages] = useState([]);
   const [a2aCollaborations, setA2aCollaborations] = useState([]);
   const [showMcpModal, setShowMcpModal] = useState(false);
   const [showA2aModal, setShowA2aModal] = useState(false);
-  const [showAgentModal, setShowAgentModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [activeWorkflows, setActiveWorkflows] = useState(new Set());
   const [realTimeUpdates, setRealTimeUpdates] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [expandedLogTypes, setExpandedLogTypes] = useState(new Set());
   const websocketRef = useRef(null);
 
   useEffect(() => {
@@ -58,7 +60,6 @@ function App() {
     ws.onclose = () => {
       setIsConnected(false);
       console.log('WebSocket disconnected');
-      // Attempt to reconnect after 3 seconds
       setTimeout(setupWebSocket, 3000);
     };
     
@@ -71,9 +72,8 @@ function App() {
   };
 
   const handleRealTimeUpdate = (data) => {
-    setRealTimeUpdates(prev => [data, ...prev.slice(0, 49)]); // Keep last 50 updates
+    setRealTimeUpdates(prev => [data, ...prev.slice(0, 49)]);
     
-    // Handle different types of real-time updates
     switch (data.type) {
       case 'mcp_update':
         fetchMcpContexts();
@@ -162,16 +162,17 @@ function App() {
       });
       const result = await response.json();
       
-      const alertMessage = `🚀 NEW COMPLETE MCP+A2A ENHANCED INCIDENT!\n\n` +
+      const alertMessage = `🚀 NEW BUSINESS-CENTRIC INCIDENT!\n\n` +
                           `Type: ${result.incident_type}\n` +
                           `Severity: ${result.severity}\n` +
                           `ID: ${result.incident_id}\n` +
-                          `MCP Context: ${result.mcp_context_id?.slice(0,8)}...\n\n` +
+                          `Business Impact: Available\n\n` +
                           `Title: ${result.title}\n\n` +
                           `✨ ALL 7 AGENTS + MCP + A2A Features Active!\n` +
                           `🧠 Model Context Protocol: Shared intelligence\n` +
                           `🤝 Agent-to-Agent Protocol: Direct collaboration\n` +
-                          `📊 Real-time updates via WebSocket`;
+                          `📊 Real-time updates via WebSocket\n` +
+                          `📝 Detailed Console Logs: Click agents to view!`;
       
       alert(alertMessage);
       fetchAllData();
@@ -192,15 +193,37 @@ function App() {
     }
   };
 
-  const viewAgentDetails = async (agentId) => {
+  // ENHANCED FUNCTION TO VIEW AGENT LOGS
+  const viewAgentLogs = async (agentId, incidentId) => {
     try {
-      const response = await fetch(`/api/agents/${agentId}/history`);
-      const agentData = await response.json();
-      setAgentHistory(agentData);
+      console.log(`Fetching logs for agent ${agentId} in incident ${incidentId}`);
+      const response = await fetch(`/api/incidents/${incidentId}/agent/${agentId}/logs`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const logsData = await response.json();
+      console.log('Agent logs data:', logsData);
+      
+      setAgentLogs(logsData);
       setSelectedAgent(agentId);
-      setShowAgentModal(true);
+      setShowAgentLogsModal(true);
+      setExpandedLogTypes(new Set()); // Reset expanded state
+      
     } catch (err) {
-      console.error('Failed to fetch agent history:', err);
+      console.error('Failed to fetch agent logs:', err);
+      alert(`Failed to fetch agent logs: ${err.message}`);
+    }
+  };
+
+  // ENHANCED FUNCTION TO VIEW AGENT LOGS FROM RECENT INCIDENTS
+  const viewAgentLogsFromIncident = async (agentId) => {
+    const recentIncident = incidents.find(i => i.executions && i.executions[agentId]);
+    if (recentIncident) {
+      await viewAgentLogs(agentId, recentIncident.id);
+    } else {
+      alert(`No recent execution found for ${agentId} agent. Please trigger an incident first.`);
     }
   };
 
@@ -216,7 +239,11 @@ function App() {
     const icons = {
       database: Database, security: Lock, network: Wifi,
       infrastructure: Server, container: Container, storage: HardDrive,
-      api: Activity, dns: Wifi, authentication: Lock
+      api: Activity, dns: Wifi, authentication: Lock,
+      business_critical: Target, payment_critical: Lock,
+      performance_critical: TrendingUp, trading_critical: BarChart3,
+      business_anomaly: AlertTriangle, conversion_critical: Target,
+      security_business: Shield
     };
     return icons[incidentType] || AlertTriangle;
   };
@@ -225,9 +252,74 @@ function App() {
     const colors = {
       database: 'text-blue-400', security: 'text-red-400', network: 'text-green-400',
       infrastructure: 'text-purple-400', container: 'text-cyan-400', storage: 'text-yellow-400',
-      api: 'text-pink-400', dns: 'text-indigo-400', authentication: 'text-orange-400'
+      api: 'text-pink-400', dns: 'text-indigo-400', authentication: 'text-orange-400',
+      business_critical: 'text-red-500', payment_critical: 'text-yellow-500',
+      performance_critical: 'text-blue-500', trading_critical: 'text-green-500',
+      business_anomaly: 'text-purple-500', conversion_critical: 'text-pink-500',
+      security_business: 'text-red-600'
     };
     return colors[incidentType] || 'text-gray-400';
+  };
+
+  const formatLogTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
+  const getLogTypeColor = (logType) => {
+    const colors = {
+      'SUCCESS': 'text-green-400',
+      'ERROR': 'text-red-400',
+      'BUSINESS_ANALYSIS': 'text-blue-400',
+      'FINANCIAL_ANALYSIS': 'text-yellow-400',
+      'TECHNICAL_ANALYSIS': 'text-purple-400',
+      'MCP_ANALYSIS': 'text-cyan-400',
+      'A2A_COLLABORATION': 'text-pink-400',
+      'STAKEHOLDER_ANALYSIS': 'text-indigo-400',
+      'ROOT_CAUSE_ANALYSIS': 'text-orange-400',
+      'CLASSIFICATION': 'text-teal-400',
+      'INFO': 'text-gray-400'
+    };
+    return colors[logType] || 'text-gray-400';
+  };
+
+  const getLogTypeIcon = (logType) => {
+    const icons = {
+      'SUCCESS': CheckCircle,
+      'ERROR': AlertTriangle,
+      'BUSINESS_ANALYSIS': Target,
+      'FINANCIAL_ANALYSIS': TrendingUp,
+      'TECHNICAL_ANALYSIS': Settings,
+      'MCP_ANALYSIS': Brain,
+      'A2A_COLLABORATION': MessageSquare,
+      'STAKEHOLDER_ANALYSIS': Users,
+      'ROOT_CAUSE_ANALYSIS': Search,
+      'CLASSIFICATION': BarChart3,
+      'INFO': Activity
+    };
+    return icons[logType] || Activity;
+  };
+
+  const toggleLogTypeExpansion = (logType) => {
+    const newExpanded = new Set(expandedLogTypes);
+    if (newExpanded.has(logType)) {
+      newExpanded.delete(logType);
+    } else {
+      newExpanded.add(logType);
+    }
+    setExpandedLogTypes(newExpanded);
+  };
+
+  // Group logs by type for better organization
+  const groupLogsByType = (logs) => {
+    const grouped = {};
+    logs.forEach(log => {
+      const type = log.log_type || 'INFO';
+      if (!grouped[type]) {
+        grouped[type] = [];
+      }
+      grouped[type].push(log);
+    });
+    return grouped;
   };
 
   if (isLoading) {
@@ -257,6 +349,7 @@ function App() {
         .mcp-glow { box-shadow: 0 0 20px rgba(168, 85, 247, 0.3); }
         .a2a-glow { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
         .agent-glow { box-shadow: 0 0 15px rgba(34, 197, 94, 0.3); }
+        .logs-glow { box-shadow: 0 0 25px rgba(255, 215, 0, 0.3); }
       `}</style>
       
       <header className="glass border-b border-purple-700/50">
@@ -267,11 +360,12 @@ function App() {
                 <div className="flex space-x-1">
                   <Brain className="w-6 h-6 text-purple-400" />
                   <MessageSquare className="w-6 h-6 text-blue-400" />
+                  <Terminal className="w-6 h-6 text-yellow-400" />
                 </div>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">OpsIntellect - MCP + A2A Ready AI Monitoring System</h1>
-                <p className="text-sm text-gray-300">Multi-Agent • Model Context Protocol • Agent-to-Agent Communication • Real-time Updates</p>
+                <h1 className="text-2xl font-bold text-white">OpsIntellect - MCP + A2A + Detailed Logs AI System</h1>
+                <p className="text-sm text-gray-300">Multi-Agent • Model Context Protocol • Agent-to-Agent Communication • Enhanced Console Logging</p>
               </div>
               {activeWorkflows.size > 0 && (
                 <div className="flex items-center space-x-2 ml-8 bg-gradient-to-r from-purple-500/20 to-blue-500/20 px-3 py-1 rounded-lg">
@@ -301,7 +395,7 @@ function App() {
               <div>
                 <p className="text-sm font-medium text-green-300">All 7 Agents</p>
                 <p className="text-xl font-bold text-green-400">{Object.keys(agents).length}</p>
-                <p className="text-xs text-green-500 mt-1">Ready & Enhanced</p>
+                <p className="text-xs text-green-500 mt-1">Enhanced & Logged</p>
               </div>
               <Users className="w-6 h-6 text-green-400" />
             </div>
@@ -323,9 +417,20 @@ function App() {
               <div>
                 <p className="text-sm font-medium text-blue-300">A2A Messages</p>
                 <p className="text-xl font-bold text-blue-400">{dashboardStats.enhanced_features?.a2a?.total_messages || 0}</p>
-                <p className="text-xs text-blue-500 mt-1">Agent Communication</p>
+                <p className="text-xs text-blue-500 mt-1">Agent Collaboration</p>
               </div>
               <MessageSquare className="w-6 h-6 text-blue-400" />
+            </div>
+          </div>
+
+          <div className="glass logs-glow rounded-xl p-4 hover:bg-yellow-500/10 transition-all">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-300">Console Logs</p>
+                <p className="text-xl font-bold text-yellow-400">Active</p>
+                <p className="text-xs text-yellow-500 mt-1">Click Agents!</p>
+              </div>
+              <Terminal className="w-6 h-6 text-yellow-400" />
             </div>
           </div>
 
@@ -334,20 +439,9 @@ function App() {
               <div>
                 <p className="text-sm font-medium text-orange-300">Active Incidents</p>
                 <p className="text-xl font-bold text-orange-400">{dashboardStats.incidents?.active || 0}</p>
-                <p className="text-xs text-orange-500 mt-1">Live Tracking</p>
+                <p className="text-xs text-orange-500 mt-1">Business Focus</p>
               </div>
               <AlertTriangle className="w-6 h-6 text-orange-400" />
-            </div>
-          </div>
-
-          <div className="glass rounded-xl p-4 hover:bg-yellow-500/10 transition-all">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-yellow-300">Collaborations</p>
-                <p className="text-xl font-bold text-yellow-400">{dashboardStats.enhanced_features?.a2a?.active_collaborations || 0}</p>
-                <p className="text-xs text-yellow-500 mt-1">Cross-agent</p>
-              </div>
-              <Share2 className="w-6 h-6 text-yellow-400" />
             </div>
           </div>
 
@@ -366,12 +460,16 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* ALL 7 AGENTS DASHBOARD - RESTORED */}
+          {/* ALL 7 AGENTS DASHBOARD - WITH ENHANCED CLICK FUNCTIONALITY */}
           <div className="xl:col-span-2">
             <div className="glass agent-glow rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-white">Multi AI Agents</h3>
+                <h3 className="text-xl font-semibold text-white">Multi AI Agents - Click for Console Logs</h3>
                 <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-1">
+                    <Terminal className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm text-yellow-400">Logs</span>
+                  </div>
                   <div className="flex items-center space-x-1">
                     <Brain className="w-4 h-4 text-purple-400" />
                     <span className="text-sm text-purple-400">MCP</span>
@@ -391,8 +489,8 @@ function App() {
                   return (
                     <div 
                       key={agentId} 
-                      className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-purple-600/30 hover:border-purple-500/50 transition-all cursor-pointer transform hover:scale-[1.02]"
-                      onClick={() => viewAgentDetails(agentId)}
+                      className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-purple-600/30 hover:border-yellow-500/70 transition-all cursor-pointer transform hover:scale-[1.02] hover:shadow-lg hover:shadow-yellow-500/20"
+                      onClick={() => viewAgentLogsFromIncident(agentId)}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
@@ -405,7 +503,7 @@ function App() {
                           </div>
                         </div>
                         <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <Terminal className="w-3 h-3 text-yellow-400 animate-pulse" />
                           <span className="text-xs text-green-400 font-medium">Ready</span>
                         </div>
                       </div>
@@ -426,14 +524,17 @@ function App() {
                           <span className="text-blue-400 font-medium ml-1">{agent.average_duration?.toFixed(1)}s</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">A2A Msgs:</span>
-                          <span className="text-yellow-400 font-medium ml-1">{agent.enhanced_features?.a2a_messages_total || 0}</span>
+                          <span className="text-gray-400">Logs:</span>
+                          <span className="text-yellow-400 font-medium ml-1">{agent.enhanced_features?.detailed_logging?.total_logs || 0}</span>
                         </div>
                       </div>
                       
                       <div className="flex items-center justify-between">
                         <div className="flex space-x-1">
-                        {agent.enhanced_features?.mcp_enhanced_executions > 0 && (
+                          {agent.enhanced_features?.detailed_logging?.total_logs > 0 && (
+                            <Terminal className="w-3 h-3 text-yellow-400" title="Detailed Logs Available" />
+                          )}
+                          {agent.enhanced_features?.mcp_enhanced_executions > 0 && (
                             <Brain className="w-3 h-3 text-purple-400" title="MCP Enhanced" />
                           )}
                           {agent.enhanced_features?.a2a_messages_total > 0 && (
@@ -442,8 +543,8 @@ function App() {
                           <Layers className="w-3 h-3 text-green-400" title="Enhanced" />
                         </div>
                         <div className="flex items-center space-x-1">
-                          <Eye className="w-3 h-3 text-gray-400" />
-                          <span className="text-xs text-gray-400">Click for Details</span>
+                          <Terminal className="w-3 h-3 text-yellow-400" />
+                          <span className="text-xs text-yellow-400">Click for Console Logs</span>
                         </div>
                       </div>
                     </div>
@@ -465,12 +566,13 @@ function App() {
                   <div className="flex space-x-1">
                     <Brain className="w-4 h-4" />
                     <MessageSquare className="w-4 h-4" />
+                    <Terminal className="w-4 h-4" />
                     <Users className="w-4 h-4" />
                   </div>
-                  <span>Check For Incident</span>
+                  <span>Trigger Business Incident</span>
                 </button>
                 <p className="text-xs text-gray-400 text-center">
-                  Multi Agents + MCP intelligence + A2A collaboration
+                  Enhanced Agents + MCP + A2A + Console Logs
                 </p>
                 
                 <div className="grid grid-cols-2 gap-2">
@@ -507,122 +609,104 @@ function App() {
                 <h3 className="text-xl font-semibold text-white">Real-time Updates</h3>
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-                  <span className="text-xs text-gray-400">{isConnected ? 'Live' : 'Disconnected'}</span>
+                  <span className="text-xs text-gray-400">{isConnected ? 'Connected' : 'Disconnected'}</span>
                 </div>
               </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {realTimeUpdates.length > 0 ? (
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {realTimeUpdates.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">Waiting for real-time updates...</p>
+                ) : (
                   realTimeUpdates.slice(0, 10).map((update, index) => (
                     <div key={index} className="bg-gray-800/30 rounded p-2 text-xs">
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`font-medium ${
-                          update.type === 'mcp_update' ? 'text-purple-400' :
-                          update.type === 'a2a_update' ? 'text-blue-400' :
-                          update.type === 'workflow_update' ? 'text-green-400' :
-                          'text-gray-400'
-                        }`}>
-                          {update.type?.replace('_', ' ').toUpperCase()}
-                        </span>
-                        <span className="text-gray-500">
-                          {new Date(update.timestamp).toLocaleTimeString()}
-                        </span>
+                        <span className="text-purple-400 font-medium">{update.type}</span>
+                        <span className="text-gray-500">{new Date(update.timestamp).toLocaleTimeString()}</span>
                       </div>
-                      <p className="text-gray-300">
-                        {update.message || update.incident_id || 'System update'}
-                      </p>
+                      <p className="text-gray-300">{update.message || 'System update'}</p>
                     </div>
                   ))
-                ) : (
-                  <div className="text-center py-4">
-                    <Activity className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                    <p className="text-gray-400 text-sm">Waiting for real-time updates...</p>
-                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Enhanced Incident Feed */}
+          {/* Recent Incidents */}
+          <div className="xl:col-span-3">
             <div className="glass rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Enhanced Incident Feed</h3>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-white">Recent Business Incidents</h3>
+                <div className="flex items-center space-x-2">
+                  <Target className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm text-orange-400">Business Focus</span>
+                </div>
+              </div>
+              
+              <div className="space-y-3 max-h-96 overflow-y-auto">
                 {incidents.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="flex justify-center space-x-2 mb-4">
-                      <Users className="w-8 h-8 text-green-600" />
-                      <Brain className="w-8 h-8 text-purple-600" />
-                      <MessageSquare className="w-8 h-8 text-blue-600" />
-                    </div>
-                    <p className="text-gray-400 text-sm mb-2">No enhanced incidents yet!</p>
-                    <p className="text-gray-500 text-xs">Generate an incident to see all 7 agents + MCP + A2A in action</p>
+                    <AlertTriangle className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                    <p className="text-gray-400 mb-4">No recent incidents</p>
+                    <button
+                      onClick={triggerTestIncident}
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-all"
+                    >
+                      Trigger Test Incident
+                    </button>
                   </div>
                 ) : (
                   incidents.map((incident) => {
-                    const IncidentTypeIcon = getIncidentTypeIcon(incident.incident_type);
-                    const typeColor = getIncidentTypeColor(incident.incident_type);
+                    const IconComponent = getIncidentTypeIcon(incident.incident_type);
+                    const colorClass = getIncidentTypeColor(incident.incident_type);
                     
                     return (
                       <div 
                         key={incident.id} 
-                        className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-3 border border-purple-600/30 hover:border-purple-500/50 transition-all cursor-pointer transform hover:scale-[1.02]"
+                        className="bg-gradient-to-r from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-gray-700/50 hover:border-purple-500/50 transition-all cursor-pointer"
                         onClick={() => viewIncidentDetails(incident.id)}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <IncidentTypeIcon className={`w-4 h-4 ${typeColor}`} />
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                              incident.severity === 'critical' ? 'bg-red-600' :
-                              incident.severity === 'high' ? 'bg-orange-500' :
-                              incident.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                            }`}>
-                              {incident.severity?.toUpperCase()}
-                            </span>
-                            <span className={`text-xs px-2 py-1 rounded-full bg-gray-700 ${typeColor} font-medium`}>
-                              {incident.incident_type?.toUpperCase()}
-                            </span>
-                            <div className="flex space-x-1">
-                              <Users className="w-3 h-3 text-green-400" title="All 7 Agents" />
-                              <Brain className="w-3 h-3 text-purple-400" title="MCP Enhanced" />
-                              <MessageSquare className="w-3 h-3 text-blue-400" title="A2A Enabled" />
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className={`p-2 bg-gray-800/50 rounded-lg`}>
+                              <IconComponent className={`w-5 h-5 ${colorClass}`} />
                             </div>
-                            {activeWorkflows.has(incident.id) && (
-                              <Network className="w-4 h-4 text-orange-400 animate-spin" />
+                            <div className="flex-1">
+                              <h4 className="font-medium text-white text-sm mb-1">{incident.title}</h4>
+                              <p className="text-xs text-gray-400 line-clamp-2">{incident.description}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              incident.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                              incident.severity === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {incident.severity}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-gray-400">Type:</span>
+                            <span className={`${colorClass} font-medium`}>{incident.incident_type}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-400">{new Date(incident.created_at).toLocaleTimeString()}</span>
+                            {incident.detailed_logs_available > 0 && (
+                              <div className="flex items-center space-x-1">
+                                <Terminal className="w-3 h-3 text-yellow-400" />
+                                <span className="text-yellow-400">{incident.detailed_logs_available} logs</span>
+                              </div>
                             )}
                           </div>
-                          <span className="text-xs text-gray-400">
-                            {new Date(incident.created_at).toLocaleTimeString()}
-                          </span>
                         </div>
                         
-                        <h4 className="text-sm font-medium text-white mb-2 truncate">
-                          {incident.title}
-                        </h4>
-                        
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="text-gray-400">Progress:</span>
-                          <span className="text-blue-400">
-                            {incident.completed_agents?.length || 0}/7 agents completed
-                          </span>
-                        </div>
-                        
-                        <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-                          <div 
-                            className="bg-gradient-to-r from-purple-500 via-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${((incident.completed_agents?.length || 0) / 7) * 100}%` }}
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            incident.workflow_status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                            incident.workflow_status === 'in_progress' ? 'bg-purple-500/20 text-purple-400' :
-                            'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            Enhanced {incident.workflow_status?.replace('_', ' ')}
-                          </span>
-                          <button className="text-xs text-purple-400 hover:text-purple-300 font-medium">
-                            View Enhanced Details →
-                          </button>
-                        </div>
+                        {incident.business_impact && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50">
+                            <p className="text-xs text-blue-300">💼 {incident.business_impact}</p>
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -633,73 +717,257 @@ function App() {
         </div>
       </div>
 
-      {/* Enhanced MCP Context Modal */}
-      {showMcpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="glass mcp-glow rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-purple-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Brain className="w-6 h-6 text-purple-400" />
-                  <h2 className="text-2xl font-bold text-white">Model Context Protocol Status</h2>
-                  <span className="bg-purple-500/20 px-2 py-1 rounded text-xs text-purple-300">Real-time</span>
+      {/* DETAILED AGENT LOGS MODAL - COMPLETE IMPLEMENTATION */}
+      {showAgentLogsModal && agentLogs && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col logs-glow">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-purple-500/30">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-lg">
+                  <Terminal className="w-6 h-6 text-yellow-400" />
                 </div>
-                <button onClick={() => setShowMcpModal(false)}>
-                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
+                <div>
+                  <h2 className="text-xl font-bold text-white">
+                    {agentLogs.agent_name} - Console Logs
+                  </h2>
+                  <p className="text-sm text-gray-300">
+                    Execution: {agentLogs.execution_id} | Status: {agentLogs.status}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAgentLogsModal(false)}
+                className="p-2 hover:bg-gray-800/50 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Execution Summary */}
+            <div className="p-6 border-b border-gray-700/50">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-gray-800/30 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 mb-1">Duration</div>
+                  <div className="text-lg font-bold text-blue-400">
+                    {agentLogs.duration_seconds?.toFixed(1)}s
+                  </div>
+                </div>
+                <div className="bg-gray-800/30 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 mb-1">Progress</div>
+                  <div className="text-lg font-bold text-green-400">
+                    {agentLogs.progress}%
+                  </div>
+                </div>
+                <div className="bg-gray-800/30 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 mb-1">Total Logs</div>
+                  <div className="text-lg font-bold text-yellow-400">
+                    {agentLogs.log_summary?.total_log_entries || 0}
+                  </div>
+                </div>
+                <div className="bg-gray-800/30 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 mb-1">Business Context</div>
+                  <div className="text-lg font-bold text-purple-400">
+                    {agentLogs.log_summary?.business_focused_logs || 0}
+                  </div>
+                </div>
+              </div>
+
+              {/* Enhanced Features */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-purple-300">MCP Enhanced</span>
+                  </div>
+                  <div className="text-xs text-gray-300">
+                    Context ID: {agentLogs.mcp_enhancements?.context_id?.slice(-8) || 'N/A'}
+                  </div>
+                  <div className="text-xs text-purple-400 mt-1">
+                    {agentLogs.mcp_enhancements?.mcp_enhanced ? 'Active' : 'Inactive'}
+                  </div>
+                </div>
+
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-medium text-blue-300">A2A Communication</span>
+                  </div>
+                  <div className="text-xs text-gray-300">
+                    Sent: {agentLogs.a2a_communications?.messages_sent || 0} | 
+                    Received: {agentLogs.a2a_communications?.messages_received || 0}
+                  </div>
+                  <div className="text-xs text-blue-400 mt-1">
+                    Collaborations: {agentLogs.a2a_communications?.collaboration_sessions?.length || 0}
+                  </div>
+                </div>
+
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Target className="w-4 h-4 text-orange-400" />
+                    <span className="text-sm font-medium text-orange-300">Business Context</span>
+                  </div>
+                  <div className="text-xs text-gray-300">
+                    Type: {agentLogs.business_context?.incident_type || 'N/A'}
+                  </div>
+                  <div className="text-xs text-orange-400 mt-1">
+                    Severity: {agentLogs.business_context?.severity || 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed Logs */}
+            <div className="flex-1 overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">Detailed Console Logs</h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-400">
+                      {agentLogs.log_summary?.log_types?.length || 0} log types
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-black/40 rounded-lg border border-gray-700/50 max-h-96 overflow-y-auto">
+                  {agentLogs.detailed_logs && agentLogs.detailed_logs.length > 0 ? (
+                    <div className="p-4 space-y-3">
+                      {/* Group logs by type */}
+                      {Object.entries(groupLogsByType(agentLogs.detailed_logs)).map(([logType, logs]) => {
+                        const LogIcon = getLogTypeIcon(logType);
+                        const colorClass = getLogTypeColor(logType);
+                        const isExpanded = expandedLogTypes.has(logType);
+                        
+                        return (
+                          <div key={logType} className="border border-gray-700/30 rounded-lg">
+                            <button
+                              onClick={() => toggleLogTypeExpansion(logType)}
+                              className="w-full flex items-center justify-between p-3 hover:bg-gray-800/30 transition-all"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <LogIcon className={`w-4 h-4 ${colorClass}`} />
+                                <span className={`font-medium ${colorClass}`}>{logType}</span>
+                                <span className="text-xs text-gray-500">({logs.length} entries)</span>
+                              </div>
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                            
+                            {isExpanded && (
+                              <div className="border-t border-gray-700/30 p-3 space-y-2">
+                                {logs.map((log, index) => (
+                                  <div key={index} className="bg-gray-900/50 rounded p-3 font-mono text-sm">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-gray-400 text-xs">
+                                        {formatLogTimestamp(log.timestamp)}
+                                      </span>
+                                      {log.business_context && (
+                                        <div className="flex items-center space-x-1">
+                                          <Target className="w-3 h-3 text-orange-400" />
+                                          <span className="text-xs text-orange-400">Business</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-gray-100 mb-2">{log.message}</div>
+                                    {log.additional_data && Object.keys(log.additional_data).length > 0 && (
+                                      <div className="bg-gray-800/50 rounded p-2 mt-2">
+                                        <div className="text-xs text-gray-400 mb-1">Additional Data:</div>
+                                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">
+                                          {JSON.stringify(log.additional_data, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center">
+                      <Terminal className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">No detailed logs available</p>
+                      <p className="text-xs text-gray-500">Logs will appear here after agent execution</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-700/50">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-400">
+                  Last execution: {agentLogs.completed_at ? new Date(agentLogs.completed_at).toLocaleString() : 'In progress'}
+                </div>
+                <button
+                  onClick={() => setShowAgentLogsModal(false)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-all"
+                >
+                  Close Logs
                 </button>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {mcpContexts.length > 0 ? (
+          </div>
+        </div>
+      )}
+
+      {/* MCP Modal */}
+      {showMcpModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-4xl max-h-[80vh] flex flex-col mcp-glow">
+            <div className="flex items-center justify-between p-6 border-b border-purple-500/30">
+              <div className="flex items-center space-x-4">
+                <Brain className="w-6 h-6 text-purple-400" />
+                <h2 className="text-xl font-bold text-white">Model Context Protocol Status</h2>
+              </div>
+              <button
+                onClick={() => setShowMcpModal(false)}
+                className="p-2 hover:bg-gray-800/50 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {mcpContexts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Brain className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                    <p className="text-gray-400">No MCP contexts available</p>
+                  </div>
+                ) : (
                   mcpContexts.map((context) => (
-                    <div key={context.context_id} className="bg-purple-900/20 border border-purple-600/30 rounded-lg p-4">
+                    <div key={context.context_id} className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-purple-300">Context #{context.context_id.slice(0,8)}</span>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-400">v{context.context_version}</span>
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                        </div>
+                        <h3 className="font-medium text-purple-300">Context: {context.context_id.slice(-8)}</h3>
+                        <span className="text-xs text-gray-400">{new Date(context.created_at).toLocaleString()}</span>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
                           <span className="text-gray-400">Incident:</span>
-                          <span className="text-white font-mono text-xs">{context.incident_id}</span>
+                          <span className="text-white ml-2">{context.incident_id}</span>
                         </div>
-                        <div className="flex justify-between">
+                        <div>
                           <span className="text-gray-400">Agents:</span>
-                          <span className="text-purple-400 font-medium">{context.agent_count}/7</span>
+                          <span className="text-purple-400 ml-2">{context.agent_count}</span>
                         </div>
-                        <div className="flex justify-between">
+                        <div>
+                          <span className="text-gray-400">Type:</span>
+                          <span className="text-white ml-2">{context.context_type}</span>
+                        </div>
+                        <div>
                           <span className="text-gray-400">Confidence:</span>
-                          <span className="text-green-400 font-medium">{Math.round(context.confidence_avg * 100)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Knowledge Keys:</span>
-                          <span className="text-blue-400">{context.shared_knowledge_keys?.length || 0}</span>
+                          <span className="text-green-400 ml-2">{(context.confidence_avg * 100).toFixed(1)}%</span>
                         </div>
                       </div>
-                      
-                      {context.agent_insights_summary && Object.keys(context.agent_insights_summary).length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-purple-600/30">
-                          <p className="text-xs text-purple-300 mb-2">Agent Insights:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(context.agent_insights_summary).map(([agentId, insight]) => (
-                              <span key={agentId} className="text-xs bg-purple-800/30 px-2 py-1 rounded">
-                                {agentId}: {Math.round(insight.confidence * 100)}%
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ))
-                ) : (
-                  <div className="col-span-2 text-center py-8">
-                    <Brain className="w-12 h-12 text-purple-600 mx-auto mb-4" />
-                    <p className="text-gray-400">No MCP contexts active</p>
-                    <p className="text-gray-500 text-sm">Contexts will appear when incidents are triggered</p>
-                  </div>
                 )}
               </div>
             </div>
@@ -707,112 +975,86 @@ function App() {
         </div>
       )}
 
-      {/* Enhanced A2A Network Modal */}
+      {/* A2A Modal */}
       {showA2aModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="glass a2a-glow rounded-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-blue-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <MessageSquare className="w-6 h-6 text-blue-400" />
-                  <h2 className="text-2xl font-bold text-white">Agent-to-Agent Network</h2>
-                  <span className="bg-blue-500/20 px-2 py-1 rounded text-xs text-blue-300">Live Communication</span>
-                </div>
-                <button onClick={() => setShowA2aModal(false)}>
-                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
-                </button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-gray-900/95 to-blue-900/95 rounded-xl border border-blue-500/50 w-full max-w-6xl max-h-[80vh] flex flex-col a2a-glow">
+            <div className="flex items-center justify-between p-6 border-b border-blue-500/30">
+              <div className="flex items-center space-x-4">
+                <MessageSquare className="w-6 h-6 text-blue-400" />
+                <h2 className="text-xl font-bold text-white">Agent-to-Agent Network</h2>
               </div>
+              <button
+                onClick={() => setShowA2aModal(false)}
+                className="p-2 hover:bg-gray-800/50 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
+            
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Recent Messages */}
                 <div>
-                  <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center">
-                    <MessageSquare className="w-5 h-5 mr-2" />
-                    Recent A2A Messages
-                    <span className="ml-2 bg-blue-500/20 px-2 py-1 rounded text-xs">{a2aMessages.length}</span>
-                  </h3>
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {a2aMessages.length > 0 ? (
+                  <h3 className="text-lg font-semibold text-white mb-4">Recent Messages</h3>
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {a2aMessages.length === 0 ? (
+                      <p className="text-gray-400 text-center py-4">No messages yet</p>
+                    ) : (
                       a2aMessages.map((message) => (
-                        <div key={message.message_id} className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3">
+                        <div key={message.message_id} className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-blue-300 text-sm font-medium">{message.sender}</span>
-                              <span className="text-gray-400">→</span>
-                              <span className="text-green-300 text-sm font-medium">{message.receiver}</span>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              message.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                              message.priority === 'critical' ? 'bg-red-600/20 text-red-300' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {message.priority}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-purple-400 bg-purple-900/20 px-2 py-1 rounded">
-                              {message.type?.replace('_', ' ')}
+                            <span className="text-blue-300 font-medium text-sm">
+                              {message.sender} → {message.receiver}
                             </span>
                             <span className="text-xs text-gray-400">
                               {new Date(message.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
+                          <div className="text-sm">
+                            <span className="text-gray-400">Type:</span>
+                            <span className="text-white ml-2">{message.type}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-gray-400">Priority:</span>
+                            <span className={`ml-2 ${message.priority === 'high' ? 'text-red-400' : 
+                              message.priority === 'critical' ? 'text-red-500' : 'text-yellow-400'}`}>
+                              {message.priority}
+                            </span>
+                          </div>
                         </div>
                       ))
-                    ) : (
-                      <div className="text-center py-8">
-                        <MessageSquare className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">No A2A messages yet</p>
-                        <p className="text-gray-500 text-xs">Messages will appear when agents communicate</p>
-                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* Active Collaborations */}
                 <div>
-                  <h3 className="text-lg font-semibold text-green-300 mb-4 flex items-center">
-                    <Share2 className="w-5 h-5 mr-2" />
-                    Active Collaborations
-                    <span className="ml-2 bg-green-500/20 px-2 py-1 rounded text-xs">{a2aCollaborations.length}</span>
-                  </h3>
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {a2aCollaborations.length > 0 ? (
+                  <h3 className="text-lg font-semibold text-white mb-4">Active Collaborations</h3>
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {a2aCollaborations.length === 0 ? (
+                      <p className="text-gray-400 text-center py-4">No active collaborations</p>
+                    ) : (
                       a2aCollaborations.map((collab) => (
-                        <div key={collab.collaboration_id} className="bg-green-900/20 border border-green-600/30 rounded-lg p-3">
+                        <div key={collab.collaboration_id} className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-green-300 text-sm font-medium">{collab.task}</span>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              collab.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {collab.status}
+                            <span className="text-green-300 font-medium text-sm">
+                              {collab.collaboration_id.slice(-8)}
                             </span>
-                          </div>
-                          <div className="text-xs text-gray-400 mb-2">
-                            Initiator: <span className="text-blue-300">{collab.initiator}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex -space-x-1">
-                              {collab.participants?.map((participant, idx) => (
-                                <div key={idx} className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full border border-gray-600 flex items-center justify-center text-xs text-white">
-                                  {participant[0]?.toUpperCase()}
-                                </div>
-                              ))}
-                            </div>
                             <span className="text-xs text-gray-400">
-                              {collab.message_count} msgs
+                              {new Date(collab.created_at).toLocaleTimeString()}
                             </span>
+                          </div>
+                          <div className="text-sm mb-1">
+                            <span className="text-gray-400">Task:</span>
+                            <span className="text-white ml-2">{collab.task}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-gray-400">Participants:</span>
+                            <span className="text-green-400 ml-2">{collab.participants.join(', ')}</span>
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <div className="text-center py-8">
-                        <Share2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">No active collaborations</p>
-                        <p className="text-gray-500 text-xs">Collaborations will appear during incidents</p>
-                      </div>
                     )}
                   </div>
                 </div>
@@ -822,250 +1064,213 @@ function App() {
         </div>
       )}
 
-      {/* Agent Details Modal */}
-      {showAgentModal && selectedAgent && agentHistory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="glass agent-glow rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-green-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  {React.createElement(getAgentIcon(selectedAgent), { className: "w-6 h-6 text-green-400" })}
-                  <h2 className="text-2xl font-bold text-white capitalize">{selectedAgent} Agent Details</h2>
-                  <span className="bg-green-500/20 px-2 py-1 rounded text-xs text-green-300">Enhanced</span>
-                </div>
-                <button onClick={() => setShowAgentModal(false)}>
-                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
-                </button>
-              </div>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
-                  <h3 className="text-green-300 font-medium mb-2">Total Executions</h3>
-                  <p className="text-2xl font-bold text-white">{agentHistory.total_executions}</p>
-                </div>
-                <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                  <h3 className="text-blue-300 font-medium mb-2">Success Rate</h3>
-                  <p className="text-2xl font-bold text-white">
-                    {((agentHistory.recent_executions?.filter(e => e.status === 'success').length || 0) / Math.max(agentHistory.recent_executions?.length || 0, 1) * 100).toFixed(1)}%
-                  </p>
-                </div>
-                <div className="bg-purple-900/20 border border-purple-600/30 rounded-lg p-4">
-                  <h3 className="text-purple-300 font-medium mb-2">Enhanced Executions</h3>
-                  <p className="text-2xl font-bold text-white">
-                    {agentHistory.recent_executions?.filter(e => e.mcp_enhanced).length || 0}
-                  </p>
-                </div>
-              </div>
-              
-              <h3 className="text-lg font-semibold text-white mb-4">Recent Execution History</h3>
-              <div className="space-y-3">
-                {agentHistory.recent_executions?.length > 0 ? (
-                  agentHistory.recent_executions.map((execution) => (
-                    <div key={execution.execution_id} className="bg-gray-800/50 border border-gray-600/50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-sm text-gray-300">{execution.incident_id}</span>
-                        <div className="flex items-center space-x-2">
-                          {execution.mcp_enhanced && <Brain className="w-4 h-4 text-purple-400" title="MCP Enhanced" />}
-                          {execution.a2a_messages > 0 && <MessageSquare className="w-4 h-4 text-blue-400" title="A2A Messages" />}
-                          {execution.collaborations > 0 && <Share2 className="w-4 h-4 text-yellow-400" title="Collaborations" />}
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            execution.status === 'success' ? 'bg-green-500/20 text-green-400' :
-                            execution.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
-                            'bg-red-500/20 text-red-400'
-                          }`}>
-                            {execution.status}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-4 text-xs">
-                        <div>
-                          <span className="text-gray-400">Duration:</span>
-                          <span className="text-white ml-1">{execution.duration?.toFixed(1)}s</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Progress:</span>
-                          <span className="text-blue-400 ml-1">{execution.progress}%</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">A2A Messages:</span>
-                          <span className="text-yellow-400 ml-1">{execution.a2a_messages}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Started:</span>
-                          <span className="text-gray-300 ml-1">
-                            {execution.started_at ? new Date(execution.started_at).toLocaleTimeString() : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <Activity className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                    <p className="text-gray-400">No execution history yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Incident Details Modal */}
+      {/* Incident Details Modal */}
       {selectedIncident && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="glass rounded-xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-purple-500/30">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-lg">
+                  <AlertTriangle className="w-6 h-6 text-orange-400" />
+                </div>
                 <div>
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h2 className="text-2xl font-bold text-white">{selectedIncident.title}</h2>
-                    <div className="flex space-x-1">
-                      <Users className="w-5 h-5 text-green-400" title="All 7 Agents" />
-                      <Brain className="w-5 h-5 text-purple-400" title="MCP Enhanced" />
-                      <MessageSquare className="w-5 h-5 text-blue-400" title="A2A Enabled" />
-                    </div>
-                  </div>
-                  <p className="text-gray-400">Enhanced with All 7 Agents + MCP + A2A Architecture</p>
+                  <h2 className="text-xl font-bold text-white">{selectedIncident.title}</h2>
+                  <p className="text-sm text-gray-300">ID: {selectedIncident.incident_id}</p>
                 </div>
-                <button onClick={() => setSelectedIncident(null)}>
-                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
-                </button>
               </div>
+              <button
+                onClick={() => setSelectedIncident(null)}
+                className="p-2 hover:bg-gray-800/50 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              {/* Enhanced Features Summary */}
-              {selectedIncident.enhanced_features && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div className="bg-purple-900/20 border border-purple-600/30 rounded-lg p-4">
-                    <div className="flex items-center mb-3">
-                      <Brain className="w-5 h-5 text-purple-400 mr-2" />
-                      <h3 className="text-lg font-semibold text-purple-300">MCP Context</h3>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Context ID:</span>
-                        <span className="text-purple-400 font-mono text-xs">
-                          {selectedIncident.enhanced_features.mcp_context?.context_id?.slice(0,12)}...
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Agent Insights:</span>
-                        <span className="text-purple-400">{selectedIncident.enhanced_features.mcp_context?.agent_insights_count || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Confidence:</span>
-                        <span className="text-green-400">{Math.round((selectedIncident.enhanced_features.mcp_context?.avg_confidence || 0) * 100)}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Version:</span>
-                        <span className="text-blue-400">v{selectedIncident.enhanced_features.mcp_context?.context_version}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                    <div className="flex items-center mb-3">
-                      <MessageSquare className="w-5 h-5 text-blue-400 mr-2" />
-                      <h3 className="text-lg font-semibold text-blue-300">A2A Protocol</h3>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Messages Sent:</span>
-                        <span className="text-blue-400">{selectedIncident.enhanced_features.a2a_protocol?.total_messages_sent || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Messages Received:</span>
-                        <span className="text-blue-400">{selectedIncident.enhanced_features.a2a_protocol?.total_messages_received || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Collaborations:</span>
-                        <span className="text-green-400">{selectedIncident.enhanced_features.a2a_protocol?.active_collaborations || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Cross Insights:</span>
-                        <span className="text-yellow-400">{selectedIncident.enhanced_features.a2a_protocol?.cross_agent_insights || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* All 7 Enhanced Agent Executions */}
-              <h3 className="text-lg font-semibold text-white mb-4">All 7 Enhanced Agent Executions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {Object.entries(selectedIncident.executions || {}).map(([agentId, execution]) => {
-                  const IconComponent = getAgentIcon(agentId);
-                  return (
-                    <div key={agentId} className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 border border-gray-600/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <IconComponent className="w-5 h-5 text-purple-400" />
-                          <span className="font-medium text-white capitalize">{agentId}</span>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Incident Details */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Incident Overview</h3>
+                    <div className="bg-gray-800/30 rounded-lg p-4">
+                      <p className="text-gray-300 mb-4">{selectedIncident.description}</p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-gray-400">Severity:</span>
+                          <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                            selectedIncident.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                            selectedIncident.severity === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {selectedIncident.severity}
+                          </span>
                         </div>
-                        <div className="flex space-x-1">
-                          {execution.mcp_enhanced && <Brain className="w-3 h-3 text-purple-400" title="MCP Enhanced" />}
-                          {execution.a2a_messages?.sent > 0 && <MessageSquare className="w-3 h-3 text-blue-400" title="A2A Active" />}
-                          {execution.collaborations > 0 && <Share2 className="w-3 h-3 text-yellow-400" title="Collaborating" />}
+                        <div>
+                          <span className="text-gray-400">Status:</span>
+                          <span className="text-white ml-2">{selectedIncident.status}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Type:</span>
+                          <span className="text-purple-400 ml-2">{selectedIncident.incident_type}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Workflow:</span>
+                          <span className="text-blue-400 ml-2">{selectedIncident.workflow_status}</span>
                         </div>
                       </div>
                       
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Status:</span>
-                          <span className={`font-medium ${
-                            execution.status === 'success' ? 'text-green-400' :
-                            execution.status === 'running' ? 'text-blue-400' :
-                            execution.status === 'error' ? 'text-red-400' :
-                            'text-gray-400'
-                          }`}>
-                            {execution.status}
-                          </span>
+                      {selectedIncident.business_impact && (
+                        <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded">
+                          <div className="text-sm text-blue-300 font-medium mb-1">Business Impact:</div>
+                          <div className="text-sm text-gray-300">{selectedIncident.business_impact}</div>
                         </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Duration:</span>
-                          <span className="text-white">{execution.duration?.toFixed(1)}s</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Agent Executions */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Agent Executions</h3>
+                    <div className="space-y-3">
+                      {Object.entries(selectedIncident.executions || {}).map(([agentId, execution]) => {
+                        const IconComponent = getAgentIcon(agentId);
+                        return (
+                          <div key={agentId} className="bg-gray-800/30 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-3">
+                                <IconComponent className="w-5 h-5 text-purple-400" />
+                                <span className="font-medium text-white capitalize">{agentId}</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  execution.status === 'success' ? 'bg-green-500/20 text-green-400' :
+                                  execution.status === 'error' ? 'bg-red-500/20 text-red-400' :
+                                  execution.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
+                                  'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                  {execution.status}
+                                </span>
+                                {execution.detailed_logging?.logs_available && (
+                                  <button
+                                    onClick={() => viewAgentLogs(agentId, selectedIncident.incident_id)}
+                                    className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 px-2 py-1 rounded text-xs transition-all flex items-center space-x-1"
+                                  >
+                                    <Terminal className="w-3 h-3" />
+                                    <span>View Logs</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-gray-400">Duration:</span>
+                                <span className="text-white ml-2">{execution.duration?.toFixed(1)}s</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">Progress:</span>
+                                <span className="text-white ml-2">{execution.progress}%</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">Logs:</span>
+                                <span className="text-yellow-400 ml-2">{execution.detailed_logging?.total_log_entries || 0}</span>
+                              </div>
+                            </div>
+                            
+                            {execution.mcp_enhanced && (
+                              <div className="mt-2 flex items-center space-x-2">
+                                <Brain className="w-3 h-3 text-purple-400" />
+                                <span className="text-xs text-purple-400">MCP Enhanced</span>
+                                {execution.a2a_messages?.sent > 0 && (
+                                  <>
+                                    <MessageSquare className="w-3 h-3 text-blue-400 ml-2" />
+                                    <span className="text-xs text-blue-400">A2A: {execution.a2a_messages.sent + execution.a2a_messages.received} msgs</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            
+                            {execution.error && (
+                              <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded">
+                                <div className="text-xs text-red-400">{execution.error}</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Progress */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Workflow Progress</h3>
+                    <div className="bg-gray-800/30 rounded-lg p-4">
+                      <div className="space-y-3">
+                        <div>
+                          <span className="text-gray-400">Completed Agents:</span>
+                          <span className="text-green-400 ml-2">{selectedIncident.completed_agents?.length || 0}/7</span>
                         </div>
-                        
-                        {execution.a2a_messages && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">A2A Messages:</span>
-                            <span className="text-blue-400">{execution.a2a_messages.sent}↑ {execution.a2a_messages.received}↓</span>
-                          </div>
-                        )}
-                        
-                        {execution.collaborations > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Collaborations:</span>
-                            <span className="text-green-400">{execution.collaborations}</span>
-                          </div>
-                        )}
-                        
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${execution.progress}%` }}
-                          />
+                        <div>
+                          <span className="text-gray-400">Failed Agents:</span>
+                          <span className="text-red-400 ml-2">{selectedIncident.failed_agents?.length || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Current Agent:</span>
+                          <span className="text-blue-400 ml-2">{selectedIncident.current_agent || 'None'}</span>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Resolution Section */}
-              <div className="bg-gray-800/50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-white mb-4">Enhanced Resolution</h3>
-                <p className="text-gray-300">{selectedIncident.resolution || 'Resolution in progress with enhanced intelligence...'}</p>
-                
-                {selectedIncident.root_cause && (
-                  <div className="mt-4 pt-4 border-t border-gray-600">
-                    <h4 className="text-md font-medium text-white mb-2">Root Cause Analysis</h4>
-                    <p className="text-gray-300 text-sm">{selectedIncident.root_cause}</p>
                   </div>
-                )}
+
+                  {/* Enhanced Features */}
+                  {selectedIncident.enhanced_features && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Enhanced Features</h3>
+                      <div className="space-y-3">
+                        {selectedIncident.enhanced_features.mcp_context && (
+                          <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Brain className="w-4 h-4 text-purple-400" />
+                              <span className="text-sm font-medium text-purple-300">MCP Context</span>
+                            </div>
+                            <div className="text-xs text-gray-300">
+                              Version: {selectedIncident.enhanced_features.mcp_context.context_version}
+                            </div>
+                            <div className="text-xs text-purple-400">
+                              Confidence: {(selectedIncident.enhanced_features.mcp_context.avg_confidence * 100).toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedIncident.enhanced_features.a2a_protocol && (
+                          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <MessageSquare className="w-4 h-4 text-blue-400" />
+                              <span className="text-sm font-medium text-blue-300">A2A Protocol</span>
+                            </div>
+                            <div className="text-xs text-gray-300">
+                              Total Messages: {selectedIncident.enhanced_features.a2a_protocol.total_messages_sent + selectedIncident.enhanced_features.a2a_protocol.total_messages_received}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resolution */}
+                  {selectedIncident.resolution && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Resolution</h3>
+                      <div className="bg-gray-800/30 rounded-lg p-4">
+                        <p className="text-sm text-gray-300">{selectedIncident.resolution}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1076,4 +1281,3 @@ function App() {
 }
 
 export default App;
-
