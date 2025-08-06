@@ -193,45 +193,11 @@ function App() {
     }
   };
 
-  // FIXED: Enhanced function to view agent logs with better error handling
-  const viewAgentLogs = async (agentId, incidentId = null) => {
+  // ENHANCED FUNCTION TO VIEW AGENT LOGS
+  const viewAgentLogs = async (agentId, incidentId) => {
     try {
-      let targetIncidentId = incidentId;
-      
-      // If no specific incident provided, find the most recent one with this agent
-      if (!targetIncidentId) {
-        console.log('Finding recent incident for agent:', agentId);
-        
-        // Sort incidents by creation time (newest first) and find one with the agent execution
-        const sortedIncidents = [...incidents].sort((a, b) => 
-          new Date(b.created_at) - new Date(a.created_at)
-        );
-        
-        for (const incident of sortedIncidents) {
-          try {
-            // Try to fetch incident details to see if this agent was executed
-            const incidentResponse = await fetch(`/api/incidents/${incident.id}/status`);
-            const incidentData = await incidentResponse.json();
-            
-            if (incidentData.executions && incidentData.executions[agentId]) {
-              targetIncidentId = incident.id;
-              console.log('Found incident with agent execution:', targetIncidentId);
-              break;
-            }
-          } catch (e) {
-            console.log('Error checking incident:', incident.id, e);
-            continue;
-          }
-        }
-      }
-      
-      if (!targetIncidentId) {
-        alert(`No execution found for ${agentId} agent. Please trigger an incident first to see detailed logs.`);
-        return;
-      }
-      
-      console.log(`Fetching logs for agent ${agentId} in incident ${targetIncidentId}`);
-      const response = await fetch(`/api/incidents/${targetIncidentId}/agent/${agentId}/logs`);
+      console.log(`Fetching logs for agent ${agentId} in incident ${incidentId}`);
+      const response = await fetch(`/api/incidents/${incidentId}/agent/${agentId}/logs`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -239,10 +205,6 @@ function App() {
       
       const logsData = await response.json();
       console.log('Agent logs data:', logsData);
-      
-      if (logsData.error) {
-        throw new Error(logsData.error);
-      }
       
       setAgentLogs(logsData);
       setSelectedAgent(agentId);
@@ -255,9 +217,14 @@ function App() {
     }
   };
 
-  // FIXED: Simplified function for clicking agents from dashboard
-  const viewAgentLogsFromDashboard = async (agentId) => {
-    await viewAgentLogs(agentId);
+  // ENHANCED FUNCTION TO VIEW AGENT LOGS FROM RECENT INCIDENTS
+  const viewAgentLogsFromIncident = async (agentId) => {
+    const recentIncident = incidents.find(i => i.executions && i.executions[agentId]);
+    if (recentIncident) {
+      await viewAgentLogs(agentId, recentIncident.id);
+    } else {
+      alert(`No recent execution found for ${agentId} agent. Please trigger an incident first.`);
+    }
   };
 
   const getAgentIcon = (agentName) => {
@@ -523,7 +490,7 @@ function App() {
                     <div 
                       key={agentId} 
                       className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-purple-600/30 hover:border-yellow-500/70 transition-all cursor-pointer transform hover:scale-[1.02] hover:shadow-lg hover:shadow-yellow-500/20"
-                      onClick={() => viewAgentLogsFromDashboard(agentId)}
+                      onClick={() => viewAgentLogsFromIncident(agentId)}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
@@ -1314,4 +1281,3 @@ function App() {
 }
 
 export default App;
-                
