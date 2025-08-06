@@ -1275,7 +1275,7 @@ class EnhancedMonitoringApp:
         self._setup_routes()
     
     def _setup_routes(self):
-        # Check For Incident
+        # Trigger business incidents
         @self.app.post("/api/trigger-incident")
         async def trigger_business_incident(incident_data: dict):
             incident = await workflow_engine.trigger_incident_workflow(incident_data)

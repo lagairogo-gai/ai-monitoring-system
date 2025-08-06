@@ -162,13 +162,13 @@ function App() {
       });
       const result = await response.json();
       
-      const alertMessage = `🚀 NEW BUSINESS-CENTRIC INCIDENT!\n\n` +
+      const alertMessage = `🚀 oh-oh there is an Incident!\n\n` +
                           `Type: ${result.incident_type}\n` +
                           `Severity: ${result.severity}\n` +
                           `ID: ${result.incident_id}\n` +
                           `Business Impact: Available\n\n` +
                           `Title: ${result.title}\n\n` +
-                          `✨ ALL 7 AGENTS + MCP + A2A Features Active!\n` +
+                          `✨ 7 AGENTS + MCP + A2A Features Active!\n` +
                           `🧠 Model Context Protocol: Shared intelligence\n` +
                           `🤝 Agent-to-Agent Protocol: Direct collaboration\n` +
                           `📊 Real-time updates via WebSocket\n` +
@@ -569,7 +569,7 @@ function App() {
                     <Terminal className="w-4 h-4" />
                     <Users className="w-4 h-4" />
                   </div>
-                  <span>Trigger Business Incident</span>
+                  <span>Check For Incident</span>
                 </button>
                 <p className="text-xs text-gray-400 text-center">
                   Enhanced Agents + MCP + A2A + Console Logs
@@ -635,7 +635,7 @@ function App() {
           <div className="xl:col-span-3">
             <div className="glass rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-white">Recent Business Incidents</h3>
+                <h3 className="text-xl font-semibold text-white">Recent Incidents History</h3>
                 <div className="flex items-center space-x-2">
                   <Target className="w-4 h-4 text-orange-400" />
                   <span className="text-sm text-orange-400">Business Focus</span>
