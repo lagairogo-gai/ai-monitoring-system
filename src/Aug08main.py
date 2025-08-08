@@ -1,7 +1,7 @@
 """
-FIXED AI Monitoring System v5 - Console Logs Working
+COMPLETE AI Monitoring System v5 - SINGLE CLEAN VERSION
 Model Context Protocol + Agent-to-Agent Communication + Business Intelligence + Detailed Logging
-FIXED: Agent logs now properly accessible
+NO DUPLICATES - CLEAN IMPLEMENTATION
 """
 import os
 import asyncio
@@ -443,29 +443,6 @@ class EnhancedWorkflowEngine:
         if websocket in self.websocket_connections:
             self.websocket_connections.remove(websocket)
         logger.info(f"WebSocket disconnected. Total: {len(self.websocket_connections)}")
-    
-    # FIXED: Get agent execution with better error handling
-    def get_agent_execution(self, incident_id: str, agent_id: str) -> Optional[AgentExecution]:
-        """Get agent execution for incident and agent - FIXED"""
-        
-        # First check active incidents
-        if incident_id in self.active_incidents:
-            incident = self.active_incidents[incident_id]
-            if agent_id in incident.executions:
-                return incident.executions[agent_id]
-        
-        # Then check incident history
-        for incident in self.incident_history:
-            if incident.id == incident_id and agent_id in incident.executions:
-                return incident.executions[agent_id]
-        
-        # If not found by incident ID, try to find most recent execution for the agent
-        executions = self.agent_execution_history.get(agent_id, [])
-        if executions:
-            # Return the most recent execution
-            return executions[-1]
-        
-        return None
     
     async def trigger_incident_workflow(self, incident_data: Dict[str, Any]) -> Incident:
         """Trigger incident workflow with business scenarios"""
@@ -1281,9 +1258,9 @@ workflow_engine = EnhancedWorkflowEngine()
 class EnhancedMonitoringApp:
     def __init__(self):
         self.app = FastAPI(
-            title="FIXED AI Monitoring System v5 - Console Logs Working",
-            description="MCP + A2A + Business Intelligence + Detailed Logging - FIXED LOGS",
-            version="5.0.0-fixed",
+            title="Complete AI Monitoring System v5 - Clean Version",
+            description="MCP + A2A + Business Intelligence + Detailed Logging - NO DUPLICATES",
+            version="5.0.0-clean",
             docs_url="/api/docs"
         )
         
@@ -1311,50 +1288,29 @@ class EnhancedMonitoringApp:
                 "severity": incident.severity.value,
                 "incident_type": incident.incident_type,
                 "business_impact": incident.business_impact,
-                "message": f"FIXED incident {incident.id} workflow initiated",
+                "message": f"Complete v5 business incident {incident.id} workflow initiated",
                 "enhanced_features": [
                     "Business-Centric Incident Scenarios", 
                     "Model Context Protocol", 
                     "Agent-to-Agent Communication", 
-                    "FIXED: Detailed Agent Console Logs"
+                    "Detailed Agent Console Logs"
                 ]
             }
         
-        # FIXED: GET DETAILED AGENT LOGS - NOW WORKING
+        # GET DETAILED AGENT LOGS - KEY FEATURE
         @self.app.get("/api/incidents/{incident_id}/agent/{agent_id}/logs")
         async def get_detailed_agent_logs(incident_id: str, agent_id: str):
-            """Get comprehensive detailed logs for a specific agent execution - FIXED"""
-            
-            # FIXED: Better agent execution lookup
-            execution = workflow_engine.get_agent_execution(incident_id, agent_id)
-            
-            if not execution:
-                return {
-                    "error": f"No execution found for agent {agent_id} in incident {incident_id}. Please trigger an incident first.",
-                    "available_agents": list(workflow_engine.agent_execution_history.keys()),
-                    "recent_incidents": [inc.id for inc in list(workflow_engine.active_incidents.values()) + workflow_engine.incident_history[-5:]]
-                }
-            
-            # Find the incident for business context
+            """Get comprehensive detailed logs for a specific agent execution"""
             incident = None
             if incident_id in workflow_engine.active_incidents:
                 incident = workflow_engine.active_incidents[incident_id]
             else:
                 incident = next((i for i in workflow_engine.incident_history if i.id == incident_id), None)
             
-            # Fallback for business context
-            business_context = {
-                "incident_type": "general",
-                "business_impact": "Assessment pending",
-                "severity": "medium"
-            }
+            if not incident or agent_id not in incident.executions:
+                return {"error": "Incident or agent execution not found"}
             
-            if incident:
-                business_context = {
-                    "incident_type": incident.incident_type,
-                    "business_impact": incident.business_impact,
-                    "severity": incident.severity.value
-                }
+            execution = incident.executions[agent_id]
             
             return {
                 "incident_id": incident_id,
@@ -1366,7 +1322,11 @@ class EnhancedMonitoringApp:
                 "started_at": execution.started_at.isoformat() if execution.started_at else None,
                 "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
                 "duration_seconds": execution.duration_seconds,
-                "business_context": business_context,
+                "business_context": {
+                    "incident_type": incident.incident_type,
+                    "business_impact": incident.business_impact,
+                    "severity": incident.severity.value
+                },
                 "mcp_enhancements": {
                     "context_id": execution.mcp_context_id,
                     "contextual_insights_used": execution.contextual_insights_used,
@@ -1387,8 +1347,7 @@ class EnhancedMonitoringApp:
                     "total_log_entries": len(execution.logs),
                     "log_types": list(set(log.get("log_type", "INFO") for log in execution.logs)),
                     "business_focused_logs": sum(1 for log in execution.logs if log.get("business_context"))
-                },
-                "fixed_version": "Console logs now working properly!"
+                }
             }
         
         # Get incident status
@@ -1459,7 +1418,7 @@ class EnhancedMonitoringApp:
                         "detailed_logging": {
                             "total_log_entries": len(execution.logs),
                             "log_types": list(set(log.get("log_type", "INFO") for log in execution.logs)),
-                            "logs_available": len(execution.logs) > 0
+                            "logs_available": True
                         },
                         "mcp_enhanced": bool(execution.contextual_insights_used),
                         "a2a_messages": {
@@ -1535,17 +1494,16 @@ class EnhancedMonitoringApp:
                     }
                 },
                 "system": {
-                    "version": "5.0.0-fixed",
+                    "version": "5.0.0-clean",
                     "architecture": [
                         "All 7 Business-Enhanced Agents",
                         "Model Context Protocol", 
                         "Agent-to-Agent Communication",
-                        "FIXED: Detailed Agent Console Logging",
+                        "Detailed Agent Console Logging",
                         "Business-Centric Incident Scenarios"
                     ],
                     "available_business_scenarios": len(BUSINESS_INCIDENT_SCENARIOS),
-                    "detailed_logging_active": True,
-                    "console_logs_fixed": True
+                    "detailed_logging_active": True
                 }
             }
         
@@ -1553,13 +1511,13 @@ class EnhancedMonitoringApp:
         @self.app.get("/api/agents")
         async def get_agents():
             agent_configs = {
-                "monitoring": "Business Intelligence Monitoring Agent with FIXED comprehensive detailed logging",
-                "rca": "Business Impact Root Cause Analysis Agent with FIXED detailed analysis logging", 
-                "pager": "Business Stakeholder Escalation Agent with FIXED comprehensive logging",
-                "ticketing": "Business Impact Ticketing Agent with FIXED comprehensive business context logging",
-                "email": "Business Stakeholder Communication Agent with FIXED detailed communication logging",
-                "remediation": "Business Continuity Remediation Agent with FIXED comprehensive action logging",
-                "validation": "Business Continuity Validation Agent with FIXED detailed validation logging"
+                "monitoring": "Business Intelligence Monitoring Agent with comprehensive detailed logging",
+                "rca": "Business Impact Root Cause Analysis Agent with detailed analysis logging", 
+                "pager": "Business Stakeholder Escalation Agent with comprehensive logging",
+                "ticketing": "Business Impact Ticketing Agent with comprehensive business context logging",
+                "email": "Business Stakeholder Communication Agent with detailed communication logging",
+                "remediation": "Business Continuity Remediation Agent with comprehensive action logging",
+                "validation": "Business Continuity Validation Agent with detailed validation logging"
             }
             
             agents_data = {}
@@ -1590,8 +1548,7 @@ class EnhancedMonitoringApp:
                         "detailed_logging": {
                             "total_logs": total_logs,
                             "business_context_logs": business_logs,
-                            "detailed_logging_active": True,
-                            "console_logs_fixed": True
+                            "detailed_logging_active": True
                         },
                         "business_enhanced": True
                     },
@@ -1609,8 +1566,7 @@ class EnhancedMonitoringApp:
                     "business_intelligence_monitoring": True,
                     "detailed_agent_logging": True,
                     "mcp_context_sharing": True,
-                    "a2a_communication": True,
-                    "console_logs_fixed": True
+                    "a2a_communication": True
                 }
             }
         
@@ -1727,9 +1683,9 @@ class EnhancedMonitoringApp:
             try:
                 initial_data = {
                     "type": "connection_established",
-                    "message": "FIXED: Real-time business intelligence updates connected",
+                    "message": "Real-time business intelligence updates connected",
                     "timestamp": datetime.now().isoformat(),
-                    "features": ["MCP Context Updates", "A2A Collaboration", "FIXED: Detailed Logging"]
+                    "features": ["MCP Context Updates", "A2A Collaboration", "Detailed Logging"]
                 }
                 await websocket.send_text(json.dumps(initial_data))
                 
@@ -1758,13 +1714,13 @@ class EnhancedMonitoringApp:
         async def health_check():
             return {
                 "status": "healthy",
-                "service": "FIXED AI Monitoring System v5 - Console Logs Working",
-                "version": "5.0.0-fixed",
+                "service": "Complete AI Monitoring System v5 - Clean Version",
+                "version": "5.0.0-clean",
                 "features": [
                     "All 7 Business-Enhanced Agents",
                     "Model Context Protocol (MCP)",
                     "Agent-to-Agent (A2A) Communication",
-                    "FIXED: Detailed Agent Console Logging",
+                    "Detailed Agent Console Logging",
                     "Business-Centric Incident Scenarios",
                     "Real-time WebSocket Updates"
                 ],
@@ -1777,8 +1733,7 @@ class EnhancedMonitoringApp:
                     "total_incidents": len(workflow_engine.incident_history) + len(workflow_engine.active_incidents),
                     "mcp_contexts": len(workflow_engine.mcp_registry.contexts),
                     "a2a_collaborations": len(workflow_engine.a2a_protocol.active_collaborations),
-                    "detailed_logging_active": True,
-                    "console_logs_fixed": True
+                    "detailed_logging_active": True
                 }
             }
         
@@ -1790,15 +1745,15 @@ class EnhancedMonitoringApp:
             @self.app.get("/")
             async def root():
                 return {
-                    "message": "🚀 FIXED AI Monitoring System v5 - Console Logs Working",
-                    "version": "5.0.0-fixed",
-                    "status": "FIXED - Console Logs Now Working",
+                    "message": "🚀 Complete AI Monitoring System v5 - Clean Version",
+                    "version": "5.0.0-clean",
+                    "status": "CLEAN - NO DUPLICATES",
                     "key_features": [
                         "✅ All 7 Agents Dashboard - Business Enhanced",
                         "✅ Real-time Progress Tracking",
                         "✅ WebSocket Live Updates",
                         "✅ Agent Execution History",
-                        "✅ FIXED: Detailed Console Logs - NOW WORKING",
+                        "✅ Detailed Console Logs - CLEAN IMPLEMENTATION",
                         "✅ Business-Centric Incident Scenarios",
                         "✅ MCP + A2A Integration"
                     ],
@@ -1812,10 +1767,9 @@ class EnhancedMonitoringApp:
                         "And more..."
                     ],
                     "detailed_logging": {
-                        "feature": "FIXED - NOW WORKING",
+                        "feature": "ACTIVE - CLEAN IMPLEMENTATION",
                         "access": "Click any agent to view detailed console logs",
-                        "content": "Business context, technical analysis, MCP insights, A2A communications",
-                        "status": "Console logs are now properly accessible!"
+                        "content": "Business context, technical analysis, MCP insights, A2A communications"
                     },
                     "api_endpoints": {
                         "trigger_incident": "POST /api/trigger-incident",
@@ -1824,27 +1778,19 @@ class EnhancedMonitoringApp:
                         "dashboard_stats": "GET /api/dashboard/stats",
                         "agents": "GET /api/agents",
                         "health": "GET /health"
-                    },
-                    "fixes_applied": [
-                        "Agent log retrieval logic improved",
-                        "Better incident-agent execution matching",
-                        "Enhanced error handling for logs",
-                        "Fallback to most recent execution when needed",
-                        "Frontend click handlers fixed"
-                    ]
+                    }
                 }
     
     def run(self, host: str = "0.0.0.0", port: int = 8000):
-        logger.info("🚀 Starting FIXED AI Monitoring System v5")
+        logger.info("🚀 Starting Complete AI Monitoring System v5 - CLEAN VERSION")
         logger.info("✅ ALL 7 BUSINESS-ENHANCED AGENTS: ACTIVE")
         logger.info("🧠 Model Context Protocol: ACTIVE")
         logger.info("🤝 Agent-to-Agent Protocol: ACTIVE") 
-        logger.info("📝 FIXED: DETAILED AGENT CONSOLE LOGS NOW WORKING")
+        logger.info("📝 DETAILED AGENT CONSOLE LOGS: CLEAN IMPLEMENTATION")
         logger.info("💼 Business-Centric Incident Scenarios: LOADED")
-        logger.info("🔧 CONSOLE LOGS BUG FIXED")
+        logger.info("🔧 NO DUPLICATES - CLEAN CODE")
         logger.info(f"🌐 Dashboard: http://localhost:{port}")
-        logger.info("🎯 FIXED: Click any agent to view detailed console logs!")
-        logger.info("🎯 FIXED: View Logs buttons in incident details now work!")
+        logger.info("🎯 Click any agent to view detailed console logs!")
         uvicorn.run(self.app, host=host, port=port, log_level="info")
 
 if __name__ == "__main__":

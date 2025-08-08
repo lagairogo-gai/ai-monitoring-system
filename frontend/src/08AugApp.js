@@ -193,65 +193,69 @@ function App() {
     }
   };
 
-  // FIXED: Simplified agent logs function - directly use most recent incident
+  // FIXED: viewAgentLogs function now gracefully handles cases where logs are not found (404).
   const viewAgentLogs = async (agentId, incidentId = null) => {
     try {
       let targetIncidentId = incidentId;
       
-      // If no specific incident provided, use the most recent one
-      if (!targetIncidentId && incidents.length > 0) {
-        // Sort incidents by creation time (newest first)
+      if (!targetIncidentId) {
         const sortedIncidents = [...incidents].sort((a, b) => 
           new Date(b.created_at) - new Date(a.created_at)
         );
-        targetIncidentId = sortedIncidents[0].id;
-        console.log('Using most recent incident:', targetIncidentId);
+        
+        for (const incident of sortedIncidents) {
+          try {
+            const incidentResponse = await fetch(`/api/incidents/${incident.id}/status`);
+            const incidentData = await incidentResponse.json();
+            
+            if (incidentData.executions && incidentData.executions[agentId]) {
+              targetIncidentId = incident.id;
+              break;
+            }
+          } catch (e) {
+            console.log('Error checking incident:', incident.id, e);
+            continue;
+          }
+        }
       }
       
       if (!targetIncidentId) {
-        alert(`No incidents found. Please trigger an incident first to see detailed logs.`);
+        alert(`No execution found for ${agentId} agent. Please trigger an incident first to see detailed logs.`);
         return;
       }
       
       console.log(`Fetching logs for agent ${agentId} in incident ${targetIncidentId}`);
       const response = await fetch(`/api/incidents/${targetIncidentId}/agent/${agentId}/logs`);
       
+      // Gracefully handle 404 Not Found. This stops the "unresponsive button" issue.
+      if (response.status === 404) {
+        console.warn(`No logs found (404) for agent ${agentId} in incident ${targetIncidentId}.`);
+        const agentName = agents[agentId]?.name || agentId;
+        setAgentLogs({
+          agent_name: `${agentName}`,
+          execution_id: 'N/A',
+          status: 'Logs Not Found',
+          duration_seconds: 0,
+          progress: 0,
+          log_summary: { total_log_entries: 0 },
+          detailed_logs: [],
+          mcp_enhancements: {},
+          a2a_communications: {},
+          business_context: {}
+        });
+        setSelectedAgent(agentId);
+        setShowAgentLogsModal(true);
+        setExpandedLogTypes(new Set());
+        return; // Exit function after setting state to show the modal
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const logsData = await response.json();
-      console.log('Agent logs data:', logsData);
       
       if (logsData.error) {
-        // If no execution found for this agent in this incident, try the next most recent
-        if (logsData.error.includes('not found')) {
-          const sortedIncidents = [...incidents].sort((a, b) => 
-            new Date(b.created_at) - new Date(a.created_at)
-          );
-          
-          for (let i = 1; i < Math.min(5, sortedIncidents.length); i++) {
-            try {
-              const nextIncidentId = sortedIncidents[i].id;
-              console.log(`Trying incident ${nextIncidentId}...`);
-              const retryResponse = await fetch(`/api/incidents/${nextIncidentId}/agent/${agentId}/logs`);
-              
-              if (retryResponse.ok) {
-                const retryLogsData = await retryResponse.json();
-                if (!retryLogsData.error) {
-                  setAgentLogs(retryLogsData);
-                  setSelectedAgent(agentId);
-                  setShowAgentLogsModal(true);
-                  setExpandedLogTypes(new Set());
-                  return;
-                }
-              }
-            } catch (e) {
-              console.log(`Failed to get logs from incident ${sortedIncidents[i].id}`);
-              continue;
-            }
-          }
-        }
         throw new Error(logsData.error);
       }
       
@@ -262,8 +266,12 @@ function App() {
       
     } catch (err) {
       console.error('Failed to fetch agent logs:', err);
-      alert(`Failed to fetch agent logs: ${err.message}. Try triggering a new incident and then viewing logs.`);
+      alert(`Failed to fetch agent logs: ${err.message}`);
     }
+  };
+
+  const viewAgentLogsFromDashboard = async (agentId) => {
+    await viewAgentLogs(agentId);
   };
 
   const getAgentIcon = (agentName) => {
@@ -499,7 +507,7 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* ALL 7 AGENTS DASHBOARD - WITH FIXED CLICK FUNCTIONALITY */}
+          {/* ALL 7 AGENTS DASHBOARD - WITH ENHANCED CLICK FUNCTIONALITY */}
           <div className="xl:col-span-2">
             <div className="glass agent-glow rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
@@ -529,7 +537,7 @@ function App() {
                     <div 
                       key={agentId} 
                       className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-purple-600/30 hover:border-yellow-500/70 transition-all cursor-pointer transform hover:scale-[1.02] hover:shadow-lg hover:shadow-yellow-500/20"
-                      onClick={() => viewAgentLogs(agentId)}
+                      onClick={() => viewAgentLogsFromDashboard(agentId)}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
@@ -756,7 +764,7 @@ function App() {
         </div>
       </div>
 
-      {/* DETAILED AGENT LOGS MODAL - FIXED IMPLEMENTATION */}
+      {/* DETAILED AGENT LOGS MODAL - COMPLETE IMPLEMENTATION */}
       {showAgentLogsModal && agentLogs && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col logs-glow">
@@ -930,8 +938,8 @@ function App() {
                   ) : (
                     <div className="p-8 text-center">
                       <Terminal className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                      <p className="text-gray-400 mb-2">No detailed logs available</p>
-                      <p className="text-xs text-gray-500">Logs will appear here after agent execution</p>
+                      <p className="text-gray-400 mb-2">No detailed logs available for this execution.</p>
+                      <p className="text-xs text-gray-500">Logs will appear here after an agent runs and generates output.</p>
                     </div>
                   )}
                 </div>
@@ -1103,7 +1111,7 @@ function App() {
         </div>
       )}
 
-      {/* Incident Details Modal - FIXED VIEW LOGS BUTTON */}
+      {/* Incident Details Modal */}
       {selectedIncident && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col">
@@ -1320,4 +1328,3 @@ function App() {
 }
 
 export default App;
-                          

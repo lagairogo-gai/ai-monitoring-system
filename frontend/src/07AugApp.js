@@ -193,23 +193,40 @@ function App() {
     }
   };
 
-  // FIXED: Simplified agent logs function - directly use most recent incident
+  // FIXED: Enhanced function to view agent logs with better error handling
   const viewAgentLogs = async (agentId, incidentId = null) => {
     try {
       let targetIncidentId = incidentId;
       
-      // If no specific incident provided, use the most recent one
-      if (!targetIncidentId && incidents.length > 0) {
-        // Sort incidents by creation time (newest first)
+      // If no specific incident provided, find the most recent one with this agent
+      if (!targetIncidentId) {
+        console.log('Finding recent incident for agent:', agentId);
+        
+        // Sort incidents by creation time (newest first) and find one with the agent execution
         const sortedIncidents = [...incidents].sort((a, b) => 
           new Date(b.created_at) - new Date(a.created_at)
         );
-        targetIncidentId = sortedIncidents[0].id;
-        console.log('Using most recent incident:', targetIncidentId);
+        
+        for (const incident of sortedIncidents) {
+          try {
+            // Try to fetch incident details to see if this agent was executed
+            const incidentResponse = await fetch(`/api/incidents/${incident.id}/status`);
+            const incidentData = await incidentResponse.json();
+            
+            if (incidentData.executions && incidentData.executions[agentId]) {
+              targetIncidentId = incident.id;
+              console.log('Found incident with agent execution:', targetIncidentId);
+              break;
+            }
+          } catch (e) {
+            console.log('Error checking incident:', incident.id, e);
+            continue;
+          }
+        }
       }
       
       if (!targetIncidentId) {
-        alert(`No incidents found. Please trigger an incident first to see detailed logs.`);
+        alert(`No execution found for ${agentId} agent. Please trigger an incident first to see detailed logs.`);
         return;
       }
       
@@ -224,46 +241,23 @@ function App() {
       console.log('Agent logs data:', logsData);
       
       if (logsData.error) {
-        // If no execution found for this agent in this incident, try the next most recent
-        if (logsData.error.includes('not found')) {
-          const sortedIncidents = [...incidents].sort((a, b) => 
-            new Date(b.created_at) - new Date(a.created_at)
-          );
-          
-          for (let i = 1; i < Math.min(5, sortedIncidents.length); i++) {
-            try {
-              const nextIncidentId = sortedIncidents[i].id;
-              console.log(`Trying incident ${nextIncidentId}...`);
-              const retryResponse = await fetch(`/api/incidents/${nextIncidentId}/agent/${agentId}/logs`);
-              
-              if (retryResponse.ok) {
-                const retryLogsData = await retryResponse.json();
-                if (!retryLogsData.error) {
-                  setAgentLogs(retryLogsData);
-                  setSelectedAgent(agentId);
-                  setShowAgentLogsModal(true);
-                  setExpandedLogTypes(new Set());
-                  return;
-                }
-              }
-            } catch (e) {
-              console.log(`Failed to get logs from incident ${sortedIncidents[i].id}`);
-              continue;
-            }
-          }
-        }
         throw new Error(logsData.error);
       }
       
       setAgentLogs(logsData);
       setSelectedAgent(agentId);
       setShowAgentLogsModal(true);
-      setExpandedLogTypes(new Set());
+      setExpandedLogTypes(new Set()); // Reset expanded state
       
     } catch (err) {
       console.error('Failed to fetch agent logs:', err);
-      alert(`Failed to fetch agent logs: ${err.message}. Try triggering a new incident and then viewing logs.`);
+      alert(`Failed to fetch agent logs: ${err.message}`);
     }
+  };
+
+  // FIXED: Simplified function for clicking agents from dashboard
+  const viewAgentLogsFromDashboard = async (agentId) => {
+    await viewAgentLogs(agentId);
   };
 
   const getAgentIcon = (agentName) => {
@@ -499,7 +493,7 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* ALL 7 AGENTS DASHBOARD - WITH FIXED CLICK FUNCTIONALITY */}
+          {/* ALL 7 AGENTS DASHBOARD - WITH ENHANCED CLICK FUNCTIONALITY */}
           <div className="xl:col-span-2">
             <div className="glass agent-glow rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
@@ -529,7 +523,7 @@ function App() {
                     <div 
                       key={agentId} 
                       className="bg-gradient-to-br from-gray-800/50 to-purple-900/20 rounded-lg p-4 border border-purple-600/30 hover:border-yellow-500/70 transition-all cursor-pointer transform hover:scale-[1.02] hover:shadow-lg hover:shadow-yellow-500/20"
-                      onClick={() => viewAgentLogs(agentId)}
+                      onClick={() => viewAgentLogsFromDashboard(agentId)}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
@@ -756,7 +750,7 @@ function App() {
         </div>
       </div>
 
-      {/* DETAILED AGENT LOGS MODAL - FIXED IMPLEMENTATION */}
+      {/* DETAILED AGENT LOGS MODAL - COMPLETE IMPLEMENTATION */}
       {showAgentLogsModal && agentLogs && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col logs-glow">
@@ -1103,7 +1097,7 @@ function App() {
         </div>
       )}
 
-      {/* Incident Details Modal - FIXED VIEW LOGS BUTTON */}
+      {/* Incident Details Modal */}
       {selectedIncident && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-gray-900/95 to-purple-900/95 rounded-xl border border-purple-500/50 w-full max-w-6xl max-h-[90vh] flex flex-col">
@@ -1320,4 +1314,4 @@ function App() {
 }
 
 export default App;
-                          
+                
