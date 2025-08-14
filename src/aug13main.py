@@ -651,11 +651,11 @@ class UltraDetailedWorkflowEngine:
         
         # Executive Summary
         resolution_parts.append(f"📋 EXECUTIVE SUMMARY:")
-        resolution_parts.append(f"   * Incident Type: {incident.incident_type}")
-        resolution_parts.append(f"   * Business Impact: {incident.business_impact}")
-        resolution_parts.append(f"   * Resolution Status: {'COMPLETE' if resolution_successful else 'PARTIAL'}")
-        resolution_parts.append(f"   * Agent Workflow: {len(incident.completed_agents)}/7 agents executed successfully")
-        resolution_parts.append(f"   * Total Resolution Time: {(datetime.now() - incident.created_at).total_seconds():.1f} seconds")
+        resolution_parts.append(f"   • Incident Type: {incident.incident_type}")
+        resolution_parts.append(f"   • Business Impact: {incident.business_impact}")
+        resolution_parts.append(f"   • Resolution Status: {'COMPLETE' if resolution_successful else 'PARTIAL'}")
+        resolution_parts.append(f"   • Agent Workflow: {len(incident.completed_agents)}/7 agents executed successfully")
+        resolution_parts.append(f"   • Total Resolution Time: {(datetime.now() - incident.created_at).total_seconds():.1f} seconds")
         
         # Business Impact Assessment
         resolution_parts.append(f"\n💰 BUSINESS IMPACT ASSESSMENT:")
@@ -663,55 +663,55 @@ class UltraDetailedWorkflowEngine:
         
         if incident.incident_type == "trading_critical":
             total_loss = duration_minutes * 245000
-            resolution_parts.append(f"   * Revenue Impact: $245,000/minute during incident duration")
-            resolution_parts.append(f"   * Total Estimated Loss: ${total_loss:,.2f}")
-            resolution_parts.append(f"   * Trading Volume Affected: High-frequency trading clients")
-            resolution_parts.append(f"   * Regulatory Compliance: Critical SLA breach risk mitigated")
+            resolution_parts.append(f"   • Revenue Impact: $245,000/minute during incident duration")
+            resolution_parts.append(f"   • Total Estimated Loss: ${total_loss:,.2f}")
+            resolution_parts.append(f"   • Trading Volume Affected: High-frequency trading clients")
+            resolution_parts.append(f"   • Regulatory Compliance: Critical SLA breach risk mitigated")
         elif incident.incident_type == "business_critical":
             total_loss = duration_minutes * 8400
-            resolution_parts.append(f"   * Revenue Impact: $8,400/minute during incident duration")
-            resolution_parts.append(f"   * Total Estimated Loss: ${total_loss:,.2f}")
-            resolution_parts.append(f"   * Customer Impact: Order processing delays resolved")
-            resolution_parts.append(f"   * System Performance: Pipeline restored to normal operation")
+            resolution_parts.append(f"   • Revenue Impact: $8,400/minute during incident duration")
+            resolution_parts.append(f"   • Total Estimated Loss: ${total_loss:,.2f}")
+            resolution_parts.append(f"   • Customer Impact: Order processing delays resolved")
+            resolution_parts.append(f"   • System Performance: Pipeline restored to normal operation")
         elif incident.incident_type == "payment_critical":
             total_loss = duration_minutes * 750
-            resolution_parts.append(f"   * Revenue Impact: $750/minute during incident duration")
-            resolution_parts.append(f"   * Total Estimated Loss: ${total_loss:,.2f}")
-            resolution_parts.append(f"   * Payment Processing: Multi-processor failure resolved")
+            resolution_parts.append(f"   • Revenue Impact: $750/minute during incident duration")
+            resolution_parts.append(f"   • Total Estimated Loss: ${total_loss:,.2f}")
+            resolution_parts.append(f"   • Payment Processing: Multi-processor failure resolved")
         else:
             total_loss = duration_minutes * 500
-            resolution_parts.append(f"   * Revenue Impact: $500/minute during incident duration")
-            resolution_parts.append(f"   * Total Estimated Loss: ${total_loss:,.2f}")
-            resolution_parts.append(f"   * Service Impact: Infrastructure issues resolved")
+            resolution_parts.append(f"   • Revenue Impact: $500/minute during incident duration")
+            resolution_parts.append(f"   • Total Estimated Loss: ${total_loss:,.2f}")
+            resolution_parts.append(f"   • Service Impact: Infrastructure issues resolved")
         
         # Technical Resolution Details
         resolution_parts.append(f"\n🔧 TECHNICAL RESOLUTION DETAILS:")
-        resolution_parts.append(f"   * Root Cause: {incident.root_cause or 'Comprehensive analysis completed'}")
-        resolution_parts.append(f"   * Systems Restored: {', '.join(incident.affected_systems)}")
+        resolution_parts.append(f"   • Root Cause: {incident.root_cause or 'Comprehensive analysis completed'}")
+        resolution_parts.append(f"   • Systems Restored: {', '.join(incident.affected_systems)}")
         if incident.remediation_applied:
-            resolution_parts.append(f"   * Remediation Actions: {len(incident.remediation_applied)} steps completed")
+            resolution_parts.append(f"   • Remediation Actions: {len(incident.remediation_applied)} steps completed")
         
         # Enhanced Features Utilized
         resolution_parts.append(f"\n🧠 ENHANCED INTELLIGENCE FEATURES:")
         mcp_context = self.mcp_registry.get_context(incident.mcp_context_id)
         if mcp_context:
             avg_confidence = sum(mcp_context.confidence_scores.values()) / len(mcp_context.confidence_scores) if mcp_context.confidence_scores else 0.8
-            resolution_parts.append(f"   * Model Context Protocol: {len(mcp_context.agent_insights)} agent insights shared")
-            resolution_parts.append(f"   * Cross-Agent Intelligence: {avg_confidence:.1%} confidence achieved")
+            resolution_parts.append(f"   • Model Context Protocol: {len(mcp_context.agent_insights)} agent insights shared")
+            resolution_parts.append(f"   • Cross-Agent Intelligence: {avg_confidence:.1%} confidence achieved")
         
         total_a2a_messages = sum(exec.a2a_messages_sent + exec.a2a_messages_received for exec in incident.executions.values())
-        resolution_parts.append(f"   * Agent-to-Agent Communications: {total_a2a_messages} messages exchanged")
+        resolution_parts.append(f"   • Agent-to-Agent Communications: {total_a2a_messages} messages exchanged")
         
         # Future Prevention
         resolution_parts.append(f"\n🛡️ FUTURE PREVENTION MEASURES:")
-        resolution_parts.append(f"   * Enhanced Monitoring: Deployed for early detection")
-        resolution_parts.append(f"   * Process Improvements: Workflow optimizations implemented")
-        resolution_parts.append(f"   * Knowledge Base: Updated with resolution procedures")
+        resolution_parts.append(f"   • Enhanced Monitoring: Deployed for early detection")
+        resolution_parts.append(f"   • Process Improvements: Workflow optimizations implemented")
+        resolution_parts.append(f"   • Knowledge Base: Updated with resolution procedures")
         
         resolution_parts.append(f"\n📈 RESOLUTION METRICS:")
-        resolution_parts.append(f"   * Total Logs Generated: {sum(len(exec.logs) for exec in incident.executions.values())}")
-        resolution_parts.append(f"   * Business Context Logs: {sum(sum(1 for log in exec.logs if log.get('business_context')) for exec in incident.executions.values())}")
-        resolution_parts.append(f"   * Agent Success Rate: {len(incident.completed_agents)}/7 = {len(incident.completed_agents)/7*100:.1f}%")
+        resolution_parts.append(f"   • Total Logs Generated: {sum(len(exec.logs) for exec in incident.executions.values())}")
+        resolution_parts.append(f"   • Business Context Logs: {sum(sum(1 for log in exec.logs if log.get('business_context')) for exec in incident.executions.values())}")
+        resolution_parts.append(f"   • Agent Success Rate: {len(incident.completed_agents)}/7 = {len(incident.completed_agents)/7*100:.1f}%")
         
         resolution_parts.append(f"\nIncident Resolution completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
         
@@ -1011,12 +1011,9 @@ class CompleteEnhancedMonitoringApp:
                 "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
                 "duration_seconds": execution.duration_seconds,
                 "business_context": business_context,
-                    "mcp_enhancements": {
-                    "context_id": execution.mcp_context_id,
-                    "contextual_insights_used": execution.contextual_insights_used,
-                    "mcp_enhanced": bool(execution.contextual_insights_used)
-                }
-            }
+                "mcp_enhancements": {
+                "context_id": execution.mcp_context_id,
+                "contextual_insights_used":    
     # =============================================================================
     # ULTRA-DETAILED AGENT IMPLEMENTATIONS
     # =============================================================================
@@ -1842,22 +1839,22 @@ class CompleteEnhancedMonitoringApp:
                 "operational_capacity": "90%_plus"
             }
 
-"""
+
                 "mcp_enhancements": {
                     "context_id": execution.mcp_context_id,
                     "contextual_insights_used": execution.contextual_insights_used,
                     "mcp_enhanced": bool(execution.contextual_insights_used)
-                }
+                },
                 "a2a_communications": {
                     "messages_sent": execution.a2a_messages_sent,
                     "messages_received": execution.a2a_messages_received,
                     "collaboration_sessions": execution.collaboration_sessions
-                }
+                },
                 "execution_data": {
                     "input_data": execution.input_data,
                     "output_data": execution.output_data,
                     "error_message": execution.error_message
-                }
+                },
                 "detailed_logs": execution.logs,
                 "log_summary": {
                     "total_log_entries": len(execution.logs),
@@ -1865,10 +1862,10 @@ class CompleteEnhancedMonitoringApp:
                     "business_focused_logs": sum(1 for log in execution.logs if log.get("business_context")),
                     "detailed_logging_active": True,
                     "enhancement_level": "ULTRA_DETAILED_COMPLETE"
-                }
+                },
                 "version": "v6.0-ultra-detailed-complete",
                 "features": "Complete with ultra-detailed business context, MCP intelligence, A2A collaboration, and comprehensive action tracking"
-   """         
+            }
         
         # Dashboard stats
         @self.app.get("/api/dashboard/stats")
@@ -2206,7 +2203,7 @@ class CompleteEnhancedMonitoringApp:
                                     `Severity: ${result.severity}\\n` +
                                     `Title: ${result.title}\\n\\n` +
                                     `✨ Enhanced Features Active:\\n` +
-                                    result.enhanced_features.map(f => `  * ${f}`).join('\\n') +
+                                    result.enhanced_features.map(f => `  • ${f}`).join('\\n') +
                                     `\\n\\n📝 Check the console logs for ultra-detailed agent execution details!\\n` +
                                     `🔗 View detailed logs: /api/incidents/${result.incident_id}/agent/{agent_id}/logs`;
                                 
